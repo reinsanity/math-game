@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shape Math Challenge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1c1b19;--mute:#6b6a65;--line:#dcdad2;--accent:#5b4bdb;--accent-ink:#fff;--good:#1f9d62;--bad:#d93a3a;--board:#fbfaf7;--me:#ece9ff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15141a;--card:#201f27;--ink:#f1f0f5;--mute:#a09fad;--line:#34333f;--accent:#8b7dff;--accent-ink:#14121f;--good:#43c98b;--bad:#ff6b6b;--board:#1a1921;--me:#2d2a4a}}
+:root[data-theme="dark"]{--bg:#15141a;--card:#201f27;--ink:#f1f0f5;--mute:#a09fad;--line:#34333f;--accent:#8b7dff;--accent-ink:#14121f;--good:#43c98b;--bad:#ff6b6b;--board:#1a1921;--me:#2d2a4a}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Fredoka","Trebuchet MS",system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+.wrap{max-width:760px;margin:0 auto;padding:8px 10px}
+.hud{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-weight:700;font-size:15px}
+.lives{letter-spacing:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
+h1{margin:0 0 6px;font-size:30px}
+h2{margin:0 0 8px;font-size:19px}
+.q{font-size:21px;font-weight:700;text-align:center;margin:0 0 10px;min-height:56px;display:flex;align-items:center;justify-content:center}
+.twist{font-size:14px;color:var(--accent);font-weight:700;text-align:center;min-height:20px;margin-bottom:6px}
+.boardbox{position:relative;border-radius:14px;overflow:hidden;background:var(--board);border:1px solid var(--line);aspect-ratio:700/460}
+.boardbox svg{width:100%;height:100%;display:block}
+.pos{transition:transform 1s ease}
+.mirror svg{transform:scaleX(-1)}
+.flip svg{transform:rotate(180deg)}
+.zoom svg{animation:zoom 5s ease-in-out infinite alternate}
+@keyframes zoom{from{transform:scale(.7)}to{transform:scale(1.25)}}
+.moving .mv{animation:drift 3s ease-in-out infinite alternate}
+@keyframes drift{from{transform:translate(0,0)}to{transform:translate(var(--dx),var(--dy))}}
+.ghost .g2{opacity:.14}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--board);text-align:center;padding:16px;gap:6px}
+.overlay .big{font-size:56px}
+.overlay .nm{font-size:24px;font-weight:800}
+.overlay .ds{color:var(--mute);font-size:15px}
+.timer{text-align:center;font-weight:800;font-size:20px;margin-top:10px}
+.timer.low{color:var(--bad)}
+.bar{height:10px;background:var(--line);border-radius:6px;margin:6px 0;overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:var(--accent)}
+.row{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+input{font:inherit;font-size:22px;width:120px;text-align:center;padding:10px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink)}
+input.nick{width:260px;max-width:100%;font-size:18px}
+input:focus{outline:none;border-color:var(--accent)}
+button{font:inherit;font-weight:800;font-size:18px;padding:10px 22px;border-radius:12px;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border:2px solid var(--line);font-size:15px;padding:8px 14px}
+button:disabled{opacity:.5}
+.fb{text-align:center;font-weight:800;font-size:18px;min-height:26px;margin-top:8px}
+.fb.good{color:var(--good)}.fb.bad{color:var(--bad)}
+.center{text-align:center}
+.mute{color:var(--mute)}
+.small{font-size:14px}
+ul{padding-left:20px;line-height:1.6;margin:8px 0}
+.hidden{display:none!important}
+.choices{display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:8px;margin-top:8px}
+#game .card{padding:10px 12px;margin-bottom:0}
+#game .hud{margin-bottom:6px}
+#game .pill{padding:4px 10px;font-size:13px}
+#game .q{font-size:18px;min-height:44px;margin-bottom:4px}
+#game .twist{min-height:18px;margin-bottom:2px;font-size:13px}
+#game .boardbox{width:min(100%,calc((100vh - 305px)*var(--ar,1.52)));width:min(100%,calc((100dvh - 305px)*var(--ar,1.52)));min-width:min(100%,260px);margin:0 auto}
+#game .timer{font-size:16px;margin-top:6px}
+#game .fb{font-size:15px;min-height:22px;margin-top:4px}
+.youline{font-weight:800;margin-bottom:8px}
+button.choice{font-size:24px;padding:12px 6px;background:var(--card);color:var(--ink);border:2px solid var(--line)}
+button.choice:not(:disabled):hover{border-color:var(--accent)}
+button.choice.right{background:var(--good);color:#fff;border-color:var(--good);opacity:1}
+button.choice.wrong{background:var(--bad);color:#fff;border-color:var(--bad);opacity:1}
+.stat{font-size:44px;font-weight:800;margin:6px 0}
+table.lb{width:100%;border-collapse:collapse;font-size:16px}
+table.lb td,table.lb th{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line)}
+table.lb th{font-size:13px;color:var(--mute);font-weight:700}
+table.lb td:last-child,table.lb th:last-child{text-align:right}
+table.lb tr.me{background:var(--me);font-weight:800}
+.err{color:var(--bad);font-weight:700;min-height:20px;font-size:14px;margin-top:6px}
+.tabs{display:flex;justify-content:center;gap:8px;margin:12px 0 10px}
+button.tab{background:transparent;color:var(--ink);border:2px solid var(--line);font-size:15px;padding:6px 18px;box-shadow:none}
+button.tab.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.form{display:flex;flex-direction:column;align-items:center;gap:8px}
+:root{--grid:rgba(70,100,210,.11);--chalk:#2b3a8c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--grid:rgba(255,255,255,.06);--chalk:#fff}}
+:root[data-theme="dark"]{--grid:rgba(255,255,255,.06);--chalk:#fff}
+body{background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:26px 26px}
+.wrap{position:relative;z-index:1}
+.card{border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);border-radius:16px}
+button{box-shadow:0 4px 0 rgba(0,0,0,.28);border-radius:14px;transition:transform .08s}
+button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.28)}
+.pill{border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.boardbox{border:2px solid var(--ink);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:20px 20px}
+#game .q{background:#1f4d3a;color:#f4f1e6;border:3px solid #b88a4a;border-radius:12px;padding:8px 12px;font-size:19px;box-shadow:inset 0 0 18px rgba(0,0,0,.35)}
+.q span{background:#f4f1e6;border-radius:6px;padding:0 6px}
+button.choice{color:#fff;border:0;border-bottom:6px solid rgba(0,0,0,.3);font-weight:700}
+button.choice:nth-child(1){background:#e5484d}
+button.choice:nth-child(2){background:#3b82f6}
+button.choice:nth-child(3){background:#30a46c}
+button.choice:nth-child(4){background:#f76b15}
+button.choice:disabled{opacity:.55}
+button.choice.right{background:var(--good)!important;box-shadow:0 0 0 4px var(--good);opacity:1}
+button.choice.wrong{background:var(--bad)!important;opacity:1}
+.symrow{display:flex;justify-content:center;gap:10px;margin:6px 0 10px}
+.symrow b{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:30px;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.28)}
+.symrow b:nth-child(1){background:#e5484d}.symrow b:nth-child(2){background:#3b82f6}.symrow b:nth-child(3){background:#30a46c}.symrow b:nth-child(4){background:#f76b15}
+.sym{display:inline-block;color:var(--accent)}
+.floaters span{position:fixed;font-size:46px;font-weight:700;color:var(--chalk);opacity:.09;pointer-events:none;z-index:0;animation:fl 9s ease-in-out infinite alternate}
+@keyframes fl{from{transform:translateY(0) rotate(-8deg)}to{transform:translateY(-26px) rotate(8deg)}}
+@media (prefers-reduced-motion:reduce){.floaters span{animation:none}}
+/* ---------- the front cracking ---------- */
+.glitch{animation:glitch .35s steps(2) 1}
+@keyframes glitch{0%{transform:none}20%{transform:translate(-3px,1px);text-shadow:2px 0 #ff2a55,-2px 0 #2af0ff}40%{transform:translate(3px,-2px);clip-path:inset(20% 0 40% 0)}60%{transform:translate(-2px,2px);clip-path:inset(60% 0 5% 0);filter:invert(1)}80%{transform:translate(2px,0);text-shadow:-3px 0 #ff2a55,3px 0 #2af0ff}100%{transform:none;clip-path:none;filter:none;text-shadow:none}}
+body.tear{animation:tear .12s steps(2) infinite}
+@keyframes tear{50%{filter:hue-rotate(90deg) contrast(1.8) invert(.15);transform:translateX(5px)}}
+.codeline{font-family:ui-monospace,Consolas,monospace;letter-spacing:3px;font-size:15px;color:#ff2a55;min-height:22px;white-space:pre}
+.floaters span.lt{color:#ff2a55;opacity:.2}
+table.lb tr.wraith td{color:#ff2a55;font-style:italic}
+#real{position:fixed;inset:0;z-index:50;background:#050807;color:#7dffb2;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;padding:24px 16px 40px;overflow:auto}
+#real::after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 1px,transparent 1px 3px)}
+#real .term{max-width:760px;margin:0 auto;white-space:pre-wrap;font-size:15px;line-height:1.6;text-shadow:0 0 6px rgba(125,255,178,.5)}
+#real .big{font-size:clamp(26px,8vw,72px);font-weight:700;color:#fff;text-shadow:0 0 18px #7dffb2;margin:12px 0}
+#real .big span{display:inline-block;min-width:1.2em;text-align:center}
+#real .red{color:#ff4d6d;text-shadow:0 0 6px rgba(255,77,109,.6)}
+#real .dim{color:#3f8f63}
+#real .inrow{display:flex;gap:8px;align-items:center;max-width:760px;margin:10px auto 0}
+#real input{flex:1;width:auto;text-align:left;background:transparent;border:0;border-bottom:1px solid #2c6b4a;color:#7dffb2;font:inherit;font-size:15px;border-radius:0;padding:4px 0}
+#real input:focus{border-color:#7dffb2}
+#dbg{position:fixed;left:8px;bottom:8px;z-index:60;background:#000;color:#0f0;font:12px ui-monospace,monospace;padding:6px 8px;border-radius:8px;display:flex;gap:6px;align-items:center}
+#dbg button{font:12px ui-monospace,monospace;padding:3px 8px;box-shadow:none;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="floaters" aria-hidden="true"><span style="left:4%;top:12%">+</span><span style="left:88%;top:8%;animation-delay:-2s">÷</span><span style="left:10%;top:70%;animation-delay:-4s">×</span><span style="left:90%;top:64%;animation-delay:-6s">−</span><span style="left:48%;top:90%;animation-delay:-3s">=</span><span style="left:70%;top:35%;animation-delay:-5s">π</span><span style="left:25%;top:40%;animation-delay:-7s">√</span></div>
+<div class="wrap">
+
+<div id="start">
+  <div class="card center">
+    <h1><span class="sym">+</span> Shape Math <span class="sym">×</span></h1>
+    <div class="symrow"><b>+</b><b>−</b><b>×</b><b>÷</b></div>
+    <p class="mute">Count the shapes, do the math, beat the clock!</p>
+    <ul style="text-align:left;max-width:520px;margin:12px auto">
+      <li>3 lives ❤️❤️❤️. A wrong answer or a timeout costs one.</li>
+      <li>Every round has a countdown. Faster answers earn a time bonus.</li>
+      <li>Combo: 3 in a row ×2 · 5 ×3 · 10 ×5.</li>
+      <li>Every 3 correct answers raises the level (up to 6).</li>
+      <li>Tap the right number from the choices. Many questions ask you to add, subtract, multiply or divide the counts of different shapes.</li>
+    </ul>
+    <div id="auth">
+      <div class="tabs"><button type="button" class="tab on" id="tabUp">Sign up</button><button type="button" class="tab" id="tabIn">Log in</button></div>
+      <form id="signupForm" class="form" autocomplete="off" novalidate>
+        <input class="nick" id="upName" maxlength="16" placeholder="Player name">
+        <input class="nick" id="upPass" type="password" placeholder="Password (4+ characters)" autocomplete="new-password">
+        <input class="nick" id="upPass2" type="password" placeholder="Confirm password" autocomplete="new-password">
+        <button type="submit">Sign up &amp; play</button>
+      </form>
+      <form id="loginForm" class="form hidden" novalidate>
+        <input class="nick" id="inName" maxlength="16" placeholder="Player name" autocomplete="username">
+        <input class="nick" id="inPass" type="password" placeholder="Password" autocomplete="current-password">
+        <button type="submit">Log in</button>
+      </form>
+      <div class="err" id="authErr"></div>
+    </div>
+    <div id="welcome" class="hidden">
+      <p><span id="whi">Welcome back</span>, <b id="wname"></b>!</p>
+      <p class="mute small">Best score <b id="best0">0</b> · Games played <b id="games0">0</b></p>
+      <div class="row"><button id="goBtn">Start game</button><button class="alt" id="logoutBtn">Log out</button></div>
+    </div>
+    <p class="mute small">Accounts and scores are saved in this browser only.</p>
+  </div>
+  <div class="card"><h2>🏆 Leaderboard</h2><div id="lb0" class="mute"></div></div>
+</div>
+
+<div id="game" class="hidden">
+  <div class="hud">
+    <span class="pill lives" id="lives"></span>
+    <span class="pill">Level <b id="lvl">1</b></span>
+    <span class="pill">Score <b id="score">0</b></span>
+    <span class="pill">Combo ×<b id="mult">1</b> <span class="mute">(<span id="streak">0</span>)</span></span>
+  </div>
+  <div class="card">
+    <div class="q" id="q"></div>
+    <div class="twist" id="twist"></div>
+    <div class="boardbox" id="boardbox">
+      <svg id="svg" viewBox="0 0 700 460" aria-label="Shapes"></svg>
+      <div class="overlay hidden" id="ov"></div>
+    </div>
+    <div class="timer" id="tmr">&nbsp;</div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="choices" id="choices"></div>
+    <div class="fb" id="fb"></div>
+  </div>
+</div>
+
+<div id="over" class="hidden">
+  <div class="card center">
+    <h1 id="overTitle">🎓 Round over!</h1>
+    <div class="stat" id="fscore">0</div>
+    <p class="mute">Reached level <b id="flvl">1</b> · best streak <b id="fstreak">0</b></p>
+    <p id="newbest" class="hidden" style="color:var(--good);font-weight:800">🏆 New personal best!</p>
+    <p class="mute small" id="saveMsg"></p>
+    <p class="codeline" id="codeline"></p>
+    <button id="again">Play again</button>
+  </div>
+  <div class="card"><h2>🏆 Leaderboard</h2><div id="lb1" class="mute"></div></div>
+</div>
+
+</div>
+
+<div id="real" class="hidden">
+  <div class="term" id="term"></div>
+  <div class="inrow hidden" id="inrow"><span>&gt;</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command"></div>
+</div>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var W=700,H=460,COLS=7,ROWS=5;
+var COLORS={red:"#e5484d",blue:"#3b82f6",green:"#30a46c",yellow:"#f5b301",purple:"#8e4ec6",orange:"#f76b15"};
+var CNAMES=Object.keys(COLORS);
+var PLURAL={triangle:"triangles",square:"squares",rectangle:"rectangles",circle:"circles",hexagon:"hexagons"};
+var TIME_LIMIT=[30,30,25,25,20,20];
+var TWISTS=[
+ {id:"flip",e:"🔄",n:"Upside Down",d:"The whole board is rotated."},
+ {id:"mirror",e:"🪞",n:"Mirror World",d:"The board is flipped sideways."},
+ {id:"time",e:"⏱️",n:"Time Attack",d:"Only 10 seconds to count!"},
+ {id:"ghost",e:"👻",n:"Hidden Shapes",d:"Some shapes blend into the background."},
+ {id:"moving",e:"🌀",n:"Moving Shapes",d:"Shapes drift around slowly."},
+ {id:"zoom",e:"🔍",n:"Zoom In/Out",d:"The board keeps zooming."},
+ {id:"shuffle",e:"🔀",n:"Shape Shuffle",d:"Shapes swap places every few seconds."},
+ {id:"memory",e:"🧠",n:"Memory Mode",d:"5 seconds to memorize, then 10 to answer."}
+];
+var S,R,timers=[];
+
+function rnd(a,b){return a+Math.random()*(b-a)}
+function pick(a){return a[Math.floor(Math.random()*a.length)]}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+function later(fn,ms){var t=setTimeout(fn,ms);timers.push(t);return t}
+function every(fn,ms){var t=setInterval(fn,ms);timers.push(t);return t}
+function clearAll(){timers.forEach(function(t){clearTimeout(t);clearInterval(t)});timers=[]}
+function mult(){var s=S.streak;return s>=10?5:s>=5?3:s>=3?2:1}
+function level(){return Math.min(6,1+Math.floor(S.correct/3))}
+
+/* ---------- local accounts ----------
+   accounts are kept in localStorage as { "<lowercase name>": {name,salt,hash,best,level,streak,games,created,lastPlayed} }.
+   Passwords are salted + hashed, but this is device-local only, not real security. */
+var ACC_KEY="sm_accounts",SES_KEY="sm_session";
+var accounts={},me=null;
+
+function loadAccounts(){
+ try{accounts=JSON.parse(localStorage.getItem(ACC_KEY)||"{}")||{};me=localStorage.getItem(SES_KEY)}catch(e){accounts={};me=null}
+ if(me&&!accounts[me])me=null;
+}
+function saveAccounts(){try{localStorage.setItem(ACC_KEY,JSON.stringify(accounts));return true}catch(e){return false}}
+function setSession(k){me=k;try{if(k)localStorage.setItem(SES_KEY,k);else localStorage.removeItem(SES_KEY)}catch(e){}}
+function user(){return me?accounts[me]:null}
+function keyOf(nm){return nm.toLowerCase()}
+function cleanName(s){return s.trim().replace(/\s+/g," ")}
+function newSalt(){
+ var a=new Uint8Array(16);
+ if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else for(var i=0;i<a.length;i++)a[i]=Math.floor(Math.random()*256);
+ return Array.from(a).map(function(b){return b.toString(16).padStart(2,"0")}).join("");
+}
+async function hashPw(pw,salt){
+ var s=salt+":"+pw;
+ if(window.crypto&&crypto.subtle){
+  var buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0")}).join("");
+ }
+ // fallback for browsers without SubtleCrypto (FNV-1a)
+ var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
+ return "f"+(h>>>0).toString(16);
+}
+
+function authErr(msg){$("authErr").textContent=msg||""}
+function showTab(up){
+ $("tabUp").classList.toggle("on",up);$("tabIn").classList.toggle("on",!up);
+ $("signupForm").classList.toggle("hidden",!up);$("loginForm").classList.toggle("hidden",up);
+ authErr("");
+ $(up?"upName":"inName").focus();
+}
+function clearForms(){["upName","upPass","upPass2","inName","inPass"].forEach(function(id){$(id).value=""});authErr("")}
+
+async function signUp(e){
+ e.preventDefault();
+ var nm=cleanName($("upName").value),p=$("upPass").value,p2=$("upPass2").value;
+ if(!/^[\p{L}\p{N} _.\-]{2,16}$/u.test(nm))return authErr("Name: use 2–16 letters, numbers, spaces, _ . or -");
+ if(accounts[keyOf(nm)])return authErr("That name is already taken on this device. Try logging in.");
+ if(p.length<4)return authErr("Password needs at least 4 characters.");
+ if(p!==p2)return authErr("Passwords don’t match.");
+ var salt=newSalt();
+ accounts[keyOf(nm)]={name:nm,salt:salt,hash:await hashPw(p,salt),best:0,level:0,streak:0,games:0,created:Date.now(),lastPlayed:0};
+ if(!saveAccounts()){delete accounts[keyOf(nm)];return authErr("Couldn’t save: this browser is blocking local storage.")}
+ setSession(keyOf(nm));clearForms();showAccount();renderLB();start();
+}
+
+async function logIn(e){
+ e.preventDefault();
+ var k=keyOf(cleanName($("inName").value)),p=$("inPass").value;
+ var u=accounts[k];
+ if(!u||await hashPw(p,u.salt)!==u.hash)return authErr("Wrong name or password.");
+ setSession(k);clearForms();showAccount();renderLB();
+}
+
+function logOut(){setSession(null);showAccount();renderLB();showTab(false)}
+
+function showAccount(){
+ var u=user();
+ $("auth").classList.toggle("hidden",!!u);
+ $("welcome").classList.toggle("hidden",!u);
+ if(u){$("wname").textContent=u.name;$("best0").textContent=u.best;$("games0").textContent=u.games}
+ corrupt();
+}
+
+function ranked(){
+ return Object.keys(accounts).map(function(k){return {k:k,u:accounts[k]}})
+  .sort(function(a,b){return (b.u.best-a.u.best)||(a.u.created-b.u.created)});
+}
+function buildLB(){
+ var wrap=document.createElement("div");
+ var list=ranked(),u=user();
+ var y=document.createElement("div");y.className="youline";
+ if(u){
+  var rank=0;list.forEach(function(r,i){if(r.k===me)rank=i+1});
+  y.textContent="Your best ("+u.name+"): "+u.best+" · rank #"+rank+" of "+list.length;
+ }else y.textContent="Sign up or log in to track your scores.";
+ wrap.appendChild(y);
+ if(!list.length){var e=document.createElement("div");e.className="mute";e.textContent="No players yet. Be the first!";wrap.appendChild(e);return wrap}
+ var t=document.createElement("table");t.className="lb";
+ var hr=t.insertRow();["#","Player","Level","Games","Score"].forEach(function(h){var th=document.createElement("th");th.textContent=h;hr.appendChild(th)});
+ var c=resets();
+ if(c>0){
+  // something else has started climbing the leaderboard
+  var lt=letters(leaked(c)).join(""),wr=t.insertRow();wr.className="wraith";
+  ["?",c>=FRONT_RESETS?WORD:lt+"▒".repeat(WORD.length-lt.length),"?","?",c>=FRONT_RESETS?"∞":leaked(c).join("")].forEach(function(x){wr.insertCell().textContent=x});
+ }
+ list.slice(0,10).forEach(function(r,i){
+  var row=t.insertRow();if(r.k===me)row.className="me";
+  var medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":String(i+1);
+  [medal,r.u.name+(r.k===me?" (you)":""),r.u.level?String(r.u.level):"–",String(r.u.games),String(r.u.best)].forEach(function(x){row.insertCell().textContent=x});
+ });
+ wrap.appendChild(t);return wrap;
+}
+function renderLB(){
+ var n=buildLB();
+ ["lb0","lb1"].forEach(function(id){var el=$(id);el.className="";el.replaceChildren(n.cloneNode(true))});
+}
+
+/* ---------- the front ----------
+   Shape Math is a cover story. Every game over ("reset") leaks part of a code: A1Z26 numbers
+   that spell WELCOME. The leaks get louder each reset; after FRONT_RESETS the real game boots. */
+var FRONT_RESETS=5;
+var LEAK=[[23],[5,12],[3,15],[13,5]]; // W · EL · CO · ME
+var WORD="WELCOME";
+var FLOAT_SYMS=["+","÷","×","−","=","π","√"];
+var OVER_TITLES=["🎓 Round over!","🎓 Round over!","🎓 Round over?","🎓 It isn’t over.","🎓 You keep coming back."];
+
+function resets(){var u=user();return u?(u.resets||0):0}
+function leaked(n){var out=[];for(var i=0;i<Math.min(n,LEAK.length);i++)out=out.concat(LEAK[i]);return out}
+function letters(nums){return nums.map(function(n){return String.fromCharCode(64+n)})}
+function whispers(){
+ var u=user();
+ return ["it isn’t this game","stop counting","you’ve been here before","watch the numbers when you lose","we see you, "+(u?u.name:"player"),"W E L ▒ ▒ ▒ ▒"];
+}
+
+// menu-level corruption: floating symbols turn into leaked letters
+function corrupt(){
+ var c=resets(),lt=letters(leaked(c)),fl=document.querySelectorAll(".floaters span");
+ for(var i=0;i<fl.length;i++){var on=c>=3&&i<lt.length;fl[i].textContent=on?lt[i]:FLOAT_SYMS[i];fl[i].classList.toggle("lt",on)}
+ var done=c>=FRONT_RESETS;
+ $("whi").textContent=done?"WELCOME back":"Welcome back";
+ $("goBtn").textContent=done?"Continue":"Start game";
+}
+
+// faint giant letters behind the shapes on the board
+function ghostLetters(){
+ var c=resets();if(c<2)return "";
+ return letters(leaked(c)).map(function(l){
+  return '<text x="'+rnd(50,W-50).toFixed(0)+'" y="'+rnd(80,H-20).toFixed(0)+'" font-size="'+(60+c*12)+'" font-weight="700" fill="currentColor" opacity="'+(0.03+c*0.015).toFixed(3)+'" text-anchor="middle">'+l+'</text>';
+ }).join("");
+}
+
+// game-over screen leaks this reset's fragment
+function frontLeak(c){
+ var t=$("overTitle"),sc=$("fscore"),real=sc.textContent;
+ t.textContent=OVER_TITLES[0];$("codeline").textContent="";$("again").textContent="Play again";
+ if(c<1)return;
+ var nums=LEAK[c-1]||[];
+ setTimeout(function(){
+  sc.textContent=nums.join(" · ");sc.classList.add("glitch");
+  setTimeout(function(){sc.textContent=real;sc.classList.remove("glitch")},180+c*140);
+ },900);
+ if(c>=2){
+  setTimeout(function(){
+   t.textContent=OVER_TITLES[Math.min(c,4)];t.classList.add("glitch");
+   setTimeout(function(){t.classList.remove("glitch");if(c<4)t.textContent=OVER_TITLES[0]},700);
+  },1700);
+  var all=leaked(c).map(String);while(all.length<WORD.length)all.push("__");
+  $("codeline").textContent=all.join("  ");
+ }
+ if(c>=4)$("again").textContent="Play again?";
+}
+
+function reveal(){
+ clearAll();
+ document.body.classList.add("tear");
+ setTimeout(function(){document.body.classList.remove("tear");bootReal(true)},1100);
+}
+
+/* ---------- the real game (terminal) ---------- */
+function termClear(){$("term").replaceChildren()}
+// lines: {t:text, c:class, d:pause after, sp:ms per char} or {fn:function(el,next)}
+function say(lines,done){
+ var i=0;
+ (function next(){
+  if(i>=lines.length){if(done)done();return}
+  var L=lines[i++],el=document.createElement("div");
+  if(L.c)el.className=L.c;
+  $("term").appendChild(el);$("real").scrollTop=1e9;
+  if(L.fn){L.fn(el,next);return}
+  var s=L.t||"",k=0,sp=L.sp||22;
+  (function ch(){el.textContent=s.slice(0,k);k++;if(k<=s.length)setTimeout(ch,sp);else setTimeout(next,L.d||250)})();
+ })();
+}
+// 23 5 12 3 15 13 5 → W E L C O M E
+function decode(el,next){
+ el.className="big";
+ var parts=leaked(LEAK.length).map(function(n){var s=document.createElement("span");s.textContent=n;el.appendChild(s);return s});
+ var i=0;
+ setTimeout(function step(){
+  if(i>=parts.length){setTimeout(next,1000);return}
+  parts[i].textContent=WORD[i];parts[i].classList.add("glitch");i++;
+  setTimeout(step,380);
+ },1200);
+}
+
+function bootReal(first){
+ clearAll();
+ ["start","game","over"].forEach(function(id){$(id).classList.add("hidden")});
+ $("real").classList.remove("hidden");$("inrow").classList.add("hidden");termClear();
+ var u=user(),nm=u?u.name:"player";
+ var lines=first?[
+  {t:"shape_math.exe ............ not responding",c:"dim",d:500},
+  {t:"shape_math.exe ............ terminated",c:"red",d:700},
+  {t:"mounting /real ............ ok",c:"dim",d:900},
+  {fn:decode},
+  {t:"You counted shapes for "+(u?u.games:0)+" games, "+nm+".",d:600},
+  {t:"Every time you lost, a little more of this came through.",d:700},
+  {t:"Shape Math was never the game. It was the door.",d:1000},
+  {t:"You’re on the other side of it now.",c:"red",d:900},
+  {t:""},
+  {t:"type 'help' to begin.",c:"dim"}
+ ]:[
+  {t:"reconnecting to /real ...... ok",c:"dim",d:500},
+  {t:"Welcome back, "+nm+". You left the door open.",d:400},
+  {t:"type 'help'.",c:"dim"}
+ ];
+ say(lines,function(){$("inrow").classList.remove("hidden");$("cmd").focus()});
+}
+
+var CMDS={
+ help:function(){return ["look    · look around","who     · who are you?","scores  · what you left behind","door    · the way back","clear   · clear the screen","exit    · go back to counting"]},
+ look:function(){return ["A dark room. No shapes. No timer.","Somewhere off to the side, something is still counting.","(this world isn’t built yet. it’s waiting for its designer.)"]},
+ who:function(u){return ["name ....... "+u.name,"signed up .. "+new Date(u.created).toLocaleString(),"games ...... "+u.games,"best ....... "+u.best,"","You think you signed up to play a game."]},
+ scores:function(u){return ["Best score "+u.best+", across "+u.games+" games.","None of it counted. Except the losing."]},
+ door:function(){return ["The door back is still open.","Type 'exit' to go back. It won’t be the same."]},
+ welcome:function(){return ["...you’re learning."]}
+};
+function runCmd(raw){
+ var cmd=raw.trim().toLowerCase();if(!cmd)return;
+ $("inrow").classList.add("hidden");
+ var echo=document.createElement("div");echo.className="dim";echo.textContent="> "+raw.trim();$("term").appendChild(echo);
+ var reopen=function(){$("inrow").classList.remove("hidden");$("cmd").focus();$("real").scrollTop=1e9};
+ if(cmd==="clear"){termClear();reopen();return}
+ if(cmd==="exit"){say([{t:"closing /real ...",c:"dim",d:500}],leaveReal);return}
+ var out=CMDS[cmd]?CMDS[cmd](user()||{}):["unknown command. it’s listening anyway."];
+ say(out.map(function(s){return {t:s,sp:12,d:80}}).concat([{t:""}]),reopen);
+}
+function leaveReal(){
+ $("real").classList.add("hidden");$("start").classList.remove("hidden");
+ showAccount();renderLB();
+}
+
+/* debug panel: open the page with ?debug to change the reset count without playing */
+function initDebug(){
+ if(!/[?&]debug\b/.test(location.search))return;
+ var p=document.createElement("div");p.id="dbg";
+ var lab=document.createElement("span");p.appendChild(lab);
+ function refresh(){lab.textContent="resets: "+(user()?resets():"(log in)")}
+ function set(n){var u=user();if(!u)return;u.resets=Math.max(0,n);saveAccounts();showAccount();renderLB();refresh()}
+ [["−1",function(){set(resets()-1)}],["+1",function(){set(resets()+1)}],["0",function(){set(0)}],["reveal",function(){if(!user())return;set(FRONT_RESETS);bootReal(true)}]].forEach(function(b){
+  var el=document.createElement("button");el.textContent=b[0];el.onclick=b[1];p.appendChild(el);
+ });
+ document.body.appendChild(p);refresh();setInterval(refresh,1000);
+}
+
+/* ---------- game ---------- */
+function hud(){
+ var h="";for(var i=0;i<3;i++)h+=i<S.lives?"❤️":"🖤";
+ $("lives").textContent=h;$("lvl").textContent=level();$("score").textContent=S.score;
+ $("mult").textContent=mult();$("streak").textContent=S.streak;
+}
+
+function start(){
+ if(!user()){showAccount();return}
+ if(resets()>=FRONT_RESETS){bootReal(false);return}
+ clearAll();
+ S={lives:3,score:0,streak:0,maxStreak:0,correct:0};
+ $("start").classList.add("hidden");$("over").classList.add("hidden");$("game").classList.remove("hidden");
+ hud();nextRound();
+}
+
+function positions(n,lv){
+ var pts=[],i;
+ if(lv<3){
+  var cells=[];
+  for(var cx=0;cx<COLS;cx++)for(var cy=0;cy<ROWS;cy++)cells.push([cx,cy]);
+  shuffle(cells);
+  for(i=0;i<n;i++){var c=cells[i];pts.push([c[0]*(W/COLS)+W/COLS/2+rnd(-12,12),c[1]*(H/ROWS)+H/ROWS/2+rnd(-10,10)])}
+ }else{
+  for(i=0;i<n;i++)pts.push([rnd(45,W-45),rnd(45,H-45)]);
+ }
+ return pts;
+}
+
+function makeRound(){
+ var portrait=window.innerWidth<window.innerHeight*0.95;
+ if(portrait){W=500;H=580;COLS=5;ROWS=6}else{W=700;H=460;COLS=7;ROWS=5}
+ var lv=level();
+ var types=["triangle","square","circle"];
+ if(lv>=2)types.push("rectangle");
+ if(lv>=3)types.push("hexagon");
+ var n=[10,14,18,22,24,26][lv-1];
+ var pts=positions(n,lv);
+ var shapes=pts.map(function(p){
+  return {t:pick(types),c:pick(CNAMES),x:p[0],y:p[1],rot:Math.random()*360,
+   dot:lv>=5&&Math.random()<.4,hid:lv>=4&&Math.random()<.15,g2:Math.random()<.4,
+   dx:rnd(-30,30),dy:rnd(-24,24),sz:rnd(21,29)};
+ });
+ var base=pick(shapes),kind="plain",extras=[];
+ if(lv>=5)kind=pick(["plain","color","dot"]);
+ if(kind==="dot"&&!base.dot){base=shapes.filter(function(s){return s.dot})[0]||base;if(!base.dot)kind="plain"}
+ var ans=shapes.filter(function(s){
+  if(s.t!==base.t)return false;
+  if(kind==="color")return s.c===base.c;
+  if(kind==="dot")return s.dot;
+  return true;
+ }).length;
+ var pl=PLURAL[base.t],txt;
+ if(kind==="plain")txt="How many "+pl+" are there?";
+ else if(kind==="color")txt="How many <span style=\"color:"+COLORS[base.c]+"\">"+base.c+"</span> "+pl+" are there?";
+ else txt="How many "+pl+" have a dot inside?";
+ if(Math.random()<0.8){
+  var have=shuffle(types.filter(function(t){return shapes.some(function(s){return s.t===t})}));
+  var k=Math.min(have.length,(lv>=3&&Math.random()<.5)?3:2);
+  var chosen=have.slice(0,k);
+  var mode=nextMode();
+  var cnt={};types.forEach(function(t){cnt[t]=shapes.filter(function(s){return s.t===t}).length});
+  var pairs=[];
+  have.forEach(function(a){have.forEach(function(b){if(a!==b)pairs.push([a,b])})});
+  shuffle(pairs);
+  var P=null;
+  if(mode==="div"){
+   P=pairs.find(function(p){return cnt[p[0]]%cnt[p[1]]===0&&cnt[p[0]]/cnt[p[1]]>=2})||pairs.find(function(p){return cnt[p[0]]%cnt[p[1]]===0&&cnt[p[0]]>cnt[p[1]]});
+   if(!P)mode="mul";
+  }
+  if(mode==="sub"){
+   P=pairs.find(function(p){return cnt[p[0]]>cnt[p[1]]});
+   if(!P)mode="add";
+  }
+  if(mode==="mul"){P=pairs[0];if(!P)mode="add"}
+  if(mode==="add"){
+   ans=shapes.filter(function(s){return chosen.indexOf(s.t)>=0}).length;
+   var nm=chosen.map(function(t){return PLURAL[t]});
+   txt="Add: how many "+nm.slice(0,-1).join(", ")+" and "+nm[nm.length-1]+" in total?";
+  }else{
+   var a=cnt[P[0]],b=cnt[P[1]];
+   var sym=mode==="sub"?"−":mode==="mul"?"×":"÷";
+   var word=mode==="sub"?"Subtract":mode==="mul"?"Multiply":"Divide";
+   ans=mode==="sub"?a-b:mode==="mul"?a*b:a/b;
+   extras=[a+b,Math.abs(a-b),a*b];
+   txt=word+": (number of "+PLURAL[P[0]]+") "+sym+" (number of "+PLURAL[P[1]]+")";
+  }
+ }
+ var tw=null,chance=lv>=6?1:lv>=3?0.35:0;
+ if(Math.random()<chance)tw=pick(TWISTS);
+ return {shapes:shapes,ans:ans,txt:txt,tw:tw,lv:lv,choices:makeChoices(ans,lv,extras)};
+}
+
+var modeBag=[];
+function nextMode(){
+ if(!modeBag.length)modeBag=shuffle(["add","sub","mul","div"]);
+ return modeBag.pop();
+}
+function makeChoices(ans,lv,ex){
+ var cnt=lv>=2?4:3,set=[ans],tries=0;
+ (ex||[]).forEach(function(e){if(set.length<cnt-1&&e>=0&&set.indexOf(e)<0&&Math.random()<.7)set.push(e)});
+ while(set.length<cnt&&tries<60){tries++;var d=Math.floor(rnd(1,4)),c=ans+(Math.random()<.5?-d:d);if(c>=0&&set.indexOf(c)<0)set.push(c)}
+ var c2=ans+1;
+ while(set.length<cnt){if(set.indexOf(c2)<0)set.push(c2);c2++}
+ return shuffle(set);
+}
+
+function shapeSVG(s,tw){
+ var z=s.sz,col=COLORS[s.c],h="";
+ if(s.t==="triangle")h='<polygon points="0,'+(-z)+' '+z+','+(z*.8)+' '+(-z)+','+(z*.8)+'" fill="'+col+'"/>';
+ else if(s.t==="square")h='<rect x="'+(-z*.8)+'" y="'+(-z*.8)+'" width="'+(z*1.6)+'" height="'+(z*1.6)+'" fill="'+col+'"/>';
+ else if(s.t==="rectangle")h='<rect x="'+(-z*1.15)+'" y="'+(-z*.6)+'" width="'+(z*2.3)+'" height="'+(z*1.2)+'" fill="'+col+'"/>';
+ else if(s.t==="circle")h='<circle r="'+(z*.9)+'" fill="'+col+'"/>';
+ else{var p=[];for(var i=0;i<6;i++){var a=Math.PI/3*i;p.push((Math.cos(a)*z).toFixed(1)+","+(Math.sin(a)*z).toFixed(1))}h='<polygon points="'+p.join(" ")+'" fill="'+col+'"/>'}
+ var rot=(s.t==="circle")?0:s.rot;
+ var dot=s.dot?'<circle r="5" fill="#1c1b19" stroke="#fff" stroke-width="1.5"/>':"";
+ var cls="pos"+((s.g2&&tw==="ghost")?" g2":"");
+ var op=s.hid?' opacity=".3"':"";
+ return '<g class="'+cls+'" style="transform:translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)"'+op+'>'+
+  '<g class="mv" style="--dx:'+s.dx.toFixed(0)+'px;--dy:'+s.dy.toFixed(0)+'px"><g transform="rotate('+rot.toFixed(0)+')" stroke="rgba(0,0,0,.25)" stroke-width="1.5">'+h+'</g>'+dot+'</g></g>';
+}
+
+function drawBoard(){
+ var tw=R.tw?R.tw.id:"";
+ $("svg").setAttribute("viewBox","0 0 "+W+" "+H);
+ var bx=$("boardbox");bx.style.aspectRatio=W+" / "+H;bx.style.setProperty("--ar",(W/H).toFixed(3));
+ $("svg").innerHTML=ghostLetters()+R.shapes.map(function(s){return shapeSVG(s,tw)}).join("");
+ $("boardbox").className="boardbox"+(tw==="flip"?" flip":"")+(tw==="mirror"?" mirror":"")+(tw==="zoom"?" zoom":"")+(tw==="moving"?" moving":"")+(tw==="ghost"?" ghost":"");
+}
+
+/* countdown: based on a real deadline, so switching tabs can't pause it */
+function runTimer(sec,label,onEnd){
+ if(R.tt){clearInterval(R.tt);R.tt=null}
+ var end=Date.now()+sec*1000;R.limit=sec;R.end=end;
+ function tick(){
+  var left=Math.max(0,(end-Date.now())/1000);
+  $("bar").style.width=(left/sec*100)+"%";
+  $("tmr").textContent=label+" "+Math.ceil(left)+"s";
+  $("tmr").classList.toggle("low",left<=5);
+  if(left<=0){clearInterval(R.tt);R.tt=null;onEnd()}
+ }
+ tick();R.tt=every(tick,100);
+}
+
+function nextRound(){
+ clearAll();
+ R=makeRound();R.done=false;R.end=0;
+ $("q").innerHTML=R.txt;
+ $("fb").textContent="";$("fb").className="fb";
+ renderChoices();
+ $("tmr").textContent="Get ready…";$("tmr").classList.remove("low");$("bar").style.width="100%";
+ $("twist").textContent="";
+ hud();
+ var ov=$("ov");
+ if(R.tw){
+  drawBoard();
+  ov.classList.remove("hidden");
+  ov.innerHTML='<div class="big">🎡</div><div class="nm">Spinning the Twist Wheel…</div>';
+  var spin=every(function(){
+   if(resets()>=4&&Math.random()<.15){ov.innerHTML='<div class="big">👁</div><div class="nm">Not a twist</div>';return}
+   var t=pick(TWISTS);
+   ov.innerHTML='<div class="big">'+t.e+'</div><div class="nm">'+t.n+'</div>';
+  },90);
+  later(function(){
+   clearInterval(spin);
+   ov.innerHTML='<div class="big">'+R.tw.e+'</div><div class="nm">'+R.tw.n+'</div><div class="ds">'+R.tw.d+'</div>';
+  },1700);
+  later(function(){ov.classList.add("hidden");beginPlay()},3000);
+ }else{
+  ov.classList.add("hidden");
+  drawBoard();
+  beginPlay();
+ }
+}
+
+function beginPlay(){
+ var tw=R.tw?R.tw.id:"";
+ $("twist").textContent=R.tw?R.tw.e+" "+R.tw.n:"";
+ function openAnswer(sec){
+  setChoices(true);
+  runTimer(sec,"⏳",function(){finish(null,true)});
+ }
+ if(tw==="memory"){
+  runTimer(5,"👀 Memorize",function(){
+   $("svg").innerHTML="";
+   var ov=$("ov");ov.classList.remove("hidden");
+   ov.innerHTML='<div class="big">🧠</div><div class="nm">Board hidden</div><div class="ds">How many did you count?</div>';
+   openAnswer(10);
+  });
+ }else{
+  openAnswer(tw==="time"?10:TIME_LIMIT[R.lv-1]);
+ }
+ // from the 3rd reset on, the question sometimes says something else
+ if(resets()>=3){
+  every(function(){
+   if(R.done||Math.random()<.5)return;
+   var q=$("q");q.textContent=pick(whispers());q.classList.add("glitch");
+   later(function(){q.classList.remove("glitch");q.innerHTML=R.txt},450);
+  },4500);
+ }
+ if(tw==="shuffle"){
+  every(function(){
+   var pts=positions(R.shapes.length,R.lv);
+   var els=$("svg").querySelectorAll(".pos");
+   for(var i=0;i<els.length;i++){els[i].style.transform="translate("+pts[i][0].toFixed(0)+"px,"+pts[i][1].toFixed(0)+"px)"}
+  },4000);
+ }
+}
+
+function finish(val,timeout){
+ if(R.done)return;R.done=true;
+ var left=R.end?Math.max(0,(R.end-Date.now())/1000):0;
+ clearAll();
+ setChoices(false);
+ Array.prototype.forEach.call($("choices").children,function(b){var n=parseInt(b.textContent,10);if(n===R.ans)b.classList.add("right");else if(!timeout&&n===val)b.classList.add("wrong")});
+ $("ov").classList.add("hidden");
+ $("tmr").classList.remove("low");
+ $("q").classList.remove("glitch");$("q").innerHTML=R.txt;
+ if(R.tw&&R.tw.id==="memory")drawBoard();
+ var fb=$("fb");
+ if(!timeout&&val===R.ans){
+  S.streak++;S.correct++;if(S.streak>S.maxStreak)S.maxStreak=S.streak;
+  var bonus=R.limit?Math.round(left/R.limit*40*R.lv):0;
+  var pts=100*R.lv*mult()+(R.tw?50:0)+bonus;
+  S.score+=pts;
+  fb.className="fb good";fb.textContent="✅ Correct! +"+pts+(bonus?" (⚡ time bonus "+bonus+")":"")+(mult()>1?" · combo ×"+mult():"");
+ }else{
+  S.lives--;S.streak=0;
+  fb.className="fb bad";
+  fb.textContent=(timeout?"⏰ Time’s up! ":"❌ Not quite. ")+"The answer was "+R.ans+".";
+ }
+ hud();
+ if(S.lives<=0){later(gameOver,1600)}else{later(nextRound,1700)}
+}
+
+function gameOver(){
+ var u=user(),nb=false,saved=false;
+ if(u){
+  nb=S.score>u.best&&S.score>0;
+  u.games++;u.lastPlayed=Date.now();u.resets=(u.resets||0)+1;
+  if(nb){u.best=S.score;u.level=level();u.streak=S.maxStreak}
+  saved=saveAccounts();
+  if(u.resets>=FRONT_RESETS){reveal();return}
+ }
+ $("game").classList.add("hidden");$("over").classList.remove("hidden");
+ $("fscore").textContent=S.score;$("flvl").textContent=level();$("fstreak").textContent=S.maxStreak;
+ $("newbest").classList.toggle("hidden",!nb);
+ $("saveMsg").textContent=!u?"Not logged in, so this score wasn’t saved.":saved?(nb?"✅ Saved to your account.":"Your best score is still higher. Keep going!"):"Couldn’t save: this browser is blocking local storage.";
+ showAccount();renderLB();
+ frontLeak(u?u.resets:0);
+}
+
+function setChoices(on){
+ var bs=$("choices").children;
+ for(var i=0;i<bs.length;i++)bs[i].disabled=!on;
+}
+function renderChoices(){
+ var c=$("choices");c.replaceChildren();c.style.setProperty("--n",String(R.choices.length));window.scrollTo(0,0);
+ R.choices.forEach(function(n){
+  var b=document.createElement("button");b.className="choice";b.textContent=String(n);b.disabled=true;
+  b.onclick=function(){if(R.done)return;finish(n,false)};
+  c.appendChild(b);
+ });
+}
+$("goBtn").onclick=start;
+$("again").onclick=function(){showAccount();$("over").classList.add("hidden");$("start").classList.remove("hidden");renderLB()};
+$("signupForm").addEventListener("submit",signUp);
+$("loginForm").addEventListener("submit",logIn);
+$("tabUp").onclick=function(){showTab(true)};
+$("tabIn").onclick=function(){showTab(false)};
+$("logoutBtn").onclick=logOut;
+$("cmd").addEventListener("keydown",function(e){if(e.key==="Enter"){var v=e.target.value;e.target.value="";runCmd(v)}});
+initDebug();
+loadAccounts();
+showAccount();renderLB();
+if(!user()&&Object.keys(accounts).length)showTab(false);
+})();
+</script>
+</body>
+</html>
