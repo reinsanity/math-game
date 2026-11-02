@@ -124,6 +124,7 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
 #real .inrow{display:flex;gap:8px;align-items:center;max-width:760px;margin:10px auto 0}
 #real input{flex:1;width:auto;text-align:left;background:transparent;border:0;border-bottom:1px solid #2c6b4a;color:#7dffb2;font:inherit;font-size:15px;border-radius:0;padding:4px 0}
 #real input:focus{border-color:#7dffb2}
+.mutebtn{position:fixed;right:10px;bottom:10px;z-index:70;font-size:18px;padding:6px 10px;background:var(--card);color:var(--ink);border:2px solid var(--ink)}
 #dbg{position:fixed;left:8px;bottom:8px;z-index:60;background:#000;color:#0f0;font:12px ui-monospace,monospace;padding:6px 8px;border-radius:8px;display:flex;gap:6px;align-items:center}
 #dbg button{font:12px ui-monospace,monospace;padding:3px 8px;box-shadow:none;border-radius:6px}
 </style>
@@ -209,6 +210,7 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
   <div class="term" id="term"></div>
   <div class="inrow hidden" id="inrow"><span>&gt;</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command"></div>
 </div>
+<button class="mutebtn" id="mute" aria-label="Toggle sound">🔊</button>
 
 <script>
 (function(){
@@ -385,7 +387,7 @@ function frontLeak(c){
  if(c<1)return;
  var nums=LEAK[c-1]||[];
  setTimeout(function(){
-  sc.textContent=nums.join(" · ");sc.classList.add("glitch");
+  sc.textContent=nums.join(" · ");sc.classList.add("glitch");sfxStatic(.15);
   setTimeout(function(){sc.textContent=real;sc.classList.remove("glitch")},180+c*140);
  },900);
  if(c>=2){
@@ -401,7 +403,7 @@ function frontLeak(c){
 
 function reveal(){
  clearAll();
- document.body.classList.add("tear");
+ document.body.classList.add("tear");sfxStatic(1.1);setMusic(null);
  setTimeout(function(){document.body.classList.remove("tear");bootReal(true)},1100);
 }
 
@@ -417,7 +419,7 @@ function say(lines,done){
   $("term").appendChild(el);$("real").scrollTop=1e9;
   if(L.fn){L.fn(el,next);return}
   var s=L.t||"",k=0,sp=L.sp||22;
-  (function ch(){el.textContent=s.slice(0,k);k++;if(k<=s.length)setTimeout(ch,sp);else setTimeout(next,L.d||250)})();
+  (function ch(){el.textContent=s.slice(0,k);if(k&&s[k-1]!==" ")sfxKey();k++;if(k<=s.length)setTimeout(ch,sp);else setTimeout(next,L.d||250)})();
  })();
 }
 // 23 5 12 3 15 13 5 → W E L C O M E
@@ -435,7 +437,7 @@ function decode(el,next){
 function bootReal(first){
  clearAll();
  ["start","game","over"].forEach(function(id){$(id).classList.add("hidden")});
- $("real").classList.remove("hidden");$("inrow").classList.add("hidden");termClear();
+ $("real").classList.remove("hidden");$("inrow").classList.add("hidden");termClear();setMusic("terminal");
  var u=user(),nm=u?u.name:"player";
  var lines=first?[
   {t:"shape_math.exe ............ not responding",c:"dim",d:500},
@@ -475,7 +477,7 @@ function runCmd(raw){
  say(out.map(function(s){return {t:s,sp:12,d:80}}).concat([{t:""}]),reopen);
 }
 function leaveReal(){
- $("real").classList.add("hidden");$("start").classList.remove("hidden");
+ $("real").classList.add("hidden");$("start").classList.remove("hidden");setMusic("front");
  showAccount();renderLB();
 }
 
@@ -490,6 +492,98 @@ function initDebug(){
   var el=document.createElement("button");el.textContent=b[0];el.onclick=b[1];p.appendChild(el);
  });
  document.body.appendChild(p);refresh();setInterval(refresh,1000);
+}
+
+/* ---------- sound ----------
+   Everything is synthesized with Web Audio, no audio files.
+   Front: a cheerful chiptune loop that decays with each reset. Terminal: fan hum + static, no tune. */
+var AU={ctx:null,master:null,bus:null,mode:null,want:null,loop:null,nodes:[],drone:null,nb:null,muted:false};
+try{AU.muted=localStorage.getItem("sm_muted")==="1"}catch(e){}
+var MEL=[72,76,79,76,81,79,76,74, 72,74,76,79,76,74,72,0, 74,77,81,77,79,76,72,76, 74,76,74,72,67,0,72,0];
+var BASS=[48,45,41,43]; // C Am F G
+function mtof(m){return 440*Math.pow(2,(m-69)/12)}
+
+// browsers only allow audio after the first click or key press
+function audioUnlock(){
+ if(!AU.ctx){
+  var C=window.AudioContext||window.webkitAudioContext;if(!C)return;
+  AU.ctx=new C();
+  AU.master=AU.ctx.createGain();AU.master.gain.value=AU.muted?0:0.5;AU.master.connect(AU.ctx.destination);
+  AU.bus=AU.ctx.createGain();AU.bus.connect(AU.master);
+  setMusic(AU.want);
+ }
+ if(AU.ctx.state==="suspended")AU.ctx.resume();
+}
+function setMusic(mode){
+ AU.want=mode;
+ if(!AU.ctx||AU.mode===mode)return;
+ stopMusic();AU.mode=mode;
+ if(mode==="front")startFront();else if(mode==="terminal")startHum();
+}
+function stopMusic(){
+ clearInterval(AU.loop);AU.loop=null;
+ var b=AU.bus;b.gain.setTargetAtTime(0,AU.ctx.currentTime,0.08);setTimeout(function(){b.disconnect()},600);
+ AU.nodes.forEach(function(n){try{n.stop(AU.ctx.currentTime+0.5)}catch(e){}});AU.nodes=[];AU.drone=null;
+ AU.bus=AU.ctx.createGain();AU.bus.connect(AU.master);
+}
+
+function blip(type,freq,t,dur,vol,dest){
+ var o=AU.ctx.createOscillator(),g=AU.ctx.createGain();
+ o.type=type;o.frequency.setValueAtTime(freq,t);
+ g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+ o.connect(g);g.connect(dest||AU.bus);o.start(t);o.stop(t+dur+0.02);
+}
+function noiseBuf(){
+ if(!AU.nb){var n=AU.ctx.sampleRate*2,b=AU.ctx.createBuffer(1,n,AU.ctx.sampleRate),d=b.getChannelData(0);for(var i=0;i<n;i++)d[i]=Math.random()*2-1;AU.nb=b}
+ return AU.nb;
+}
+function noise(t,dur,vol,type,freq,dest){
+ var s=AU.ctx.createBufferSource(),f=AU.ctx.createBiquadFilter(),g=AU.ctx.createGain();
+ s.buffer=noiseBuf();f.type=type;f.frequency.value=freq;
+ g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+ s.connect(f);f.connect(g);g.connect(dest||AU.bus);s.start(t,Math.random());s.stop(t+dur+0.02);
+}
+function sfxStatic(dur){if(AU.ctx)noise(AU.ctx.currentTime,dur,0.25,"bandpass",1800,AU.master)}
+function sfxKey(){if(AU.ctx)noise(AU.ctx.currentTime,0.015,0.05,"highpass",2500,AU.master)}
+
+// front tune: c = resets so far, every reset makes it a little more wrong
+function playStep(i,t,c){
+ var m=MEL[c>=4?31-i:i];
+ if(m&&!(c>=3&&Math.random()<.2)){
+  if(c>=2&&Math.random()<.12*c)m-=1;
+  if(c>=4&&Math.random()<.3)m-=12;
+  blip("square",mtof(m)*Math.pow(2,(c?rnd(-c*8,c*8):0)/1200),t,0.18,0.06);
+ }
+ if(i%2===0){var r=BASS[Math.floor(i/8)];blip("triangle",mtof(i%4===0?r:r+7),t,0.2,0.12)}
+ else if(c<4)noise(t,0.03,0.025,"highpass",6000);
+}
+function startFront(){
+ var step=0,next=AU.ctx.currentTime+0.1;
+ AU.loop=setInterval(function(){
+  var c=Math.min(resets(),4),spb=60/(140-c*12)/2;
+  if(c>=3&&!AU.drone){
+   var o=AU.ctx.createOscillator(),g=AU.ctx.createGain();o.frequency.value=55;g.gain.value=0.05;
+   o.connect(g);g.connect(AU.bus);o.start();AU.nodes.push(o);AU.drone=o;
+  }
+  while(next<AU.ctx.currentTime+0.15){playStep(step,next,c);next+=spb;step=(step+1)%MEL.length}
+ },25);
+}
+
+// terminal: fan noise, mains hum, data chirps and the odd faint note
+function startHum(){
+ var x=AU.ctx;
+ var src=x.createBufferSource(),lp=x.createBiquadFilter(),g=x.createGain();
+ src.buffer=noiseBuf();src.loop=true;lp.type="lowpass";lp.frequency.value=420;g.gain.value=0.22;
+ src.connect(lp);lp.connect(g);g.connect(AU.bus);src.start();AU.nodes.push(src);
+ [[60,0.035],[120,0.015]].forEach(function(h){
+  var o=x.createOscillator(),og=x.createGain();o.frequency.value=h[0];og.gain.value=h[1];
+  o.connect(og);og.connect(AU.bus);o.start();AU.nodes.push(o);
+ });
+ AU.loop=setInterval(function(){
+  var t=x.currentTime;
+  if(Math.random()<.25)blip("square",rnd(1200,3200),t,0.03,0.012);
+  if(Math.random()<.05)blip("sine",mtof(pick([45,48,52,55,57,60])),t,3,0.05);
+ },400);
 }
 
 /* ---------- game ---------- */
@@ -688,7 +782,7 @@ function beginPlay(){
  if(resets()>=3){
   every(function(){
    if(R.done||Math.random()<.5)return;
-   var q=$("q");q.textContent=pick(whispers());q.classList.add("glitch");
+   var q=$("q");q.textContent=pick(whispers());q.classList.add("glitch");sfxStatic(.1);
    later(function(){q.classList.remove("glitch");q.innerHTML=R.txt},450);
   },4500);
  }
@@ -765,6 +859,14 @@ $("tabIn").onclick=function(){showTab(false)};
 $("logoutBtn").onclick=logOut;
 $("cmd").addEventListener("keydown",function(e){if(e.key==="Enter"){var v=e.target.value;e.target.value="";runCmd(v)}});
 initDebug();
+setMusic("front");
+document.addEventListener("pointerdown",audioUnlock);
+document.addEventListener("keydown",audioUnlock);
+$("mute").textContent=AU.muted?"🔇":"🔊";
+$("mute").onclick=function(){
+ AU.muted=!AU.muted;try{localStorage.setItem("sm_muted",AU.muted?"1":"0")}catch(e){}
+ this.textContent=AU.muted?"🔇":"🔊";if(AU.master)AU.master.gain.value=AU.muted?0:0.5;
+};
 loadAccounts();
 showAccount();renderLB();
 if(!user()&&Object.keys(accounts).length)showTab(false);
