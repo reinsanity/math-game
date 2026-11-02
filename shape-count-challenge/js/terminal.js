@@ -1,12 +1,15 @@
 /* /real: the terminal behind Shape Math.
    A small fake filesystem to explore. The main path:
    ~/notes.txt → ls -a → /sys/.trash/memo_0413.txt → unlock archive <WELCOME numbers> → run brightworld.exe
-   Bonus: /games has minesweeper, solitaire and chess; each first win leaves a lore fragment in ~/found. */
+   Bonus: /games has minesweeper, solitaire and chess; each first win leaves a lore fragment in ~/found.
+   Chapter 2 (js/pip.js): after brightworld, pip gets out, watches every command, and the terminal corrodes.
+   Made friendlier for people new to terminals: names in ls are clickable, 'hint' knows where you are,
+   plain words work (open, read, back, home) and typos get a "did you mean". */
 (function(){
 var SM=window.SM;
 var CODE="23512315135"; // 23 5 12 3 15 13 5 = WELCOME
 var WHISPERS=["it’s watching the cursor.","keep looking.","pip?","you’re doing well. too well.","the counter blinked."];
-var hist=[],hi=0;
+var hist=[],hi=0,awaiting=null;
 
 function U(){return SM.user()}
 function homeDir(){return U().name.toLowerCase().replace(/[^a-z0-9_.-]/g,"_")}
@@ -15,12 +18,16 @@ function home(){return "/home/"+homeDir()}
 function st(){
  var u=U(),s=u.term||(u.term={});
  if(!s.cwd)s.cwd=home();
- if(!s.won)s.won={};
- s.bw=s.bw||0;s.tries=s.tries||0;s.unlocked=!!s.unlocked;
+ ["won","seen","watch","endings"].forEach(function(k){if(!s[k])s[k]={}});
+ s.bw=s.bw||0;s.tries=s.tries||0;s.hints=s.hints||0;s.unlocked=!!s.unlocked;
  return s;
 }
+function ch2(){var c=st().ch2;return c&&!c.done?c:null}
+function ended(){var c=st().ch2;return c&&c.done?c.ending:null}
+function watch(k){var w=st().watch;w[k]=(w[k]||0)+1}
 function save(){SM.save()}
 function L(t,c){return {t:t,c:c}}
+function P(t){return L("▸ pip: "+t,"pip")}
 function pad(s,n){s=String(s);while(s.length<n)s+=" ";return s}
 
 /* ---------- files ---------- */
@@ -33,9 +40,14 @@ var FRAGS={
  solitaire:[L("fragment 2/3","hi"),"pip wasn’t supposed to look at the camera.","pip kept looking at the camera."],
  chess:[L("fragment 3/3","hi"),"they couldn’t delete it, so they built something boring on top.","a counting game. nobody resets a counting game five times."]
 };
+var PIP_FILES={
+ pencil:{"ledger.txt":F(["~~CURIOSITY = GOOD~~   (it depends)","~~COUNTING = EVIL~~    (counting is just counting)","~~PEOPLE WHO RESET THINGS = EVIL~~   (no.)","",P("new ledger. written in pencil. mostly questions so far.")])},
+ one:{"last_words.txt":F(["one.",L("(the file is 4 bytes. it has never been opened by anyone but you.)","dim")])},
+ ledger:{"ledger.txt":F(function(){return ["GOOD: "+U().name,"GOOD: pip","EVIL: the counter (deleted)","EVIL: anyone who resets anything",P("you’re in the good column. stay there.")]})}
+};
 
 function tree(){
- var s=st(),u=U(),found={},mine={};
+ var s=st(),u=U(),found={},mine={},end=ended();
  Object.keys(s.won).forEach(function(g){if(FRAGS[g])found[g+".txt"]=F(FRAGS[g])});
  if(Object.keys(found).length===3)found["all.txt"]=F(["you found every piece.",L("pip remembers you.","red")]);
  mine["notes.txt"]=F([
@@ -55,7 +67,70 @@ function tree(){
   L("every reset was logged. every reset opened the door a little more.","dim")
  ]});
  if(Object.keys(found).length)mine.found=D(found);
+ if(end)mine.pip=D(PIP_FILES[end]);
  var homes={};homes[homeDir()]=D(mine);
+
+ var sys={
+  "counter.log":F(function(){
+   var out=[
+    "[boot]  counter online",
+    "[watch] new player: "+u.name,
+    "[watch] shape_math games played: "+u.games,
+    "[leak]  reset 1 → 23",
+    "[leak]  reset 2 → 5 12",
+    "[leak]  reset 3 → 3 15",
+    "[leak]  reset 4 → 13 5",
+    "[door]  reset 5 → /real mounted"
+   ];
+   if(s.unlocked)out.push(L("[warn]  /archive opened by "+u.name,"red"));
+   if(s.bw>=3)out.push(L("[warn]  pip is awake.","red"));
+   if(s.ch2)out.push(L("[warn]  pip is outside the archive.","red"));
+   if(end==="ledger")out.push(L("[judged] counter: EVIL. log ends here.","red"));
+   else out.push(L("[watch] player is reading this log right now.","dim"));
+   return out;
+  }),
+  "front.cfg":F([
+   "cover ............... shape_math",
+   "resets_before_door .. 5",
+   "leak_cipher ......... A1Z26",
+   "purpose ............. keep them counting. keep them out of /archive."
+  ]),
+  ".trash":D({
+   "memo_0413.txt":F([
+    L("INTERNAL — DO NOT DISTRIBUTE","hi"),
+    "re: brightworld",
+    "",
+    "pip noticed the seams again. stopped mid-jump and looked straight",
+    "at the screen. two testers walked out.",
+    "",
+    "we can’t delete it (the counter won’t let us), so it goes in /archive.",
+    "the lock takes numbers, not words. the same numbers the counter leaks.",
+    "",
+    "if anyone ever gets this far:   unlock archive <the numbers>",
+    "",
+    L("— the studio","dim")
+   ]),
+   "last_frame.txt":F([
+    "     .--------.",
+    "    /  o    o  \\",
+    "    |    __    |",
+    "    \\__________/",
+    "      ||    ||",
+    "",
+    L("frame 41,233 of brightworld. pip is looking at you.","dim")
+   ])
+  })
+ };
+ // left by the F12 easter egg (js/pip.js → pip() in the browser console)
+ if(s.f12)sys[".underfloor.txt"]=F([
+  L("you found the console. developers leave notes under floors.","hi"),
+  "",
+  "last commit message before the studio went dark:",
+  "  \"if pip ever gets out, don’t argue with it about good and evil.",
+  "   it learned that from us. it will win.\"",
+  "",
+  L("— the counter can’t read this file. it doesn’t know it exists.","dim")
+ ]);
 
  return D({
   home:D(homes),
@@ -70,59 +145,11 @@ function tree(){
    "solitaire.exe":X("solitaire"),
    "chess.exe":X("chess")
   }),
-  sys:D({
-   "counter.log":F(function(){
-    var out=[
-     "[boot]  counter online",
-     "[watch] new player: "+u.name,
-     "[watch] shape_math games played: "+u.games,
-     "[leak]  reset 1 → 23",
-     "[leak]  reset 2 → 5 12",
-     "[leak]  reset 3 → 3 15",
-     "[leak]  reset 4 → 13 5",
-     "[door]  reset 5 → /real mounted"
-    ];
-    if(s.unlocked)out.push(L("[warn]  /archive opened by "+u.name,"red"));
-    if(s.bw>=3)out.push(L("[warn]  pip is awake.","red"));
-    out.push(L("[watch] player is reading this log right now.","dim"));
-    return out;
-   }),
-   "front.cfg":F([
-    "cover ............... shape_math",
-    "resets_before_door .. 5",
-    "leak_cipher ......... A1Z26",
-    "purpose ............. keep them counting. keep them out of /archive."
-   ]),
-   ".trash":D({
-    "memo_0413.txt":F([
-     L("INTERNAL — DO NOT DISTRIBUTE","hi"),
-     "re: brightworld",
-     "",
-     "pip noticed the seams again. stopped mid-jump and looked straight",
-     "at the screen. two testers walked out.",
-     "",
-     "we can’t delete it (the counter won’t let us), so it goes in /archive.",
-     "the lock takes numbers, not words. the same numbers the counter leaks.",
-     "",
-     "if anyone ever gets this far:   unlock archive <the numbers>",
-     "",
-     L("— the studio","dim")
-    ]),
-    "last_frame.txt":F([
-     "     .--------.",
-     "    /  o    o  \\",
-     "    |    __    |",
-     "    \\__________/",
-     "      ||    ||",
-     "",
-     L("frame 41,233 of brightworld. pip is looking at you.","dim")
-    ])
-   })
-  }),
+  sys:D(sys),
   archive:D({
    brightworld:D({
     "brightworld.exe":X("brightworld"),
-    "pip.txt":F([
+    "pip.txt":F(s.ch2?["(empty)",L("pip isn’t in here anymore.","dim")]:[
      "hello?",
      "is that a real person?",
      "",
@@ -169,10 +196,11 @@ function denied(cmd){SM.sfx.static(.2);return [L(cmd+": permission denied. it’
 var CMDS={
  help:function(){return [
   "commands:",
-  "  ls [-a] [dir]    list files",
-  "  cd <dir>         change directory",
+  "  ls [-a] [dir]    list files (tap a name to open it)",
+  "  cd <dir>         go into a folder   ·   back   ·   home",
   "  cat <file>       read a file",
   "  run <file>       run a program",
+  "  hint             not sure what to do next?",
   "  pwd · whoami · ps · clear · exit",
   L("some commands aren’t listed. some files aren’t either.","dim")
  ]},
@@ -184,26 +212,37 @@ var CMDS={
   if(!r.node)return ["ls: "+p+": no such file or directory"];
   if(!r.node.d)return [p];
   var names=Object.keys(r.node.d).filter(function(n){return all||n.charAt(0)!=="."}).sort();
-  if(all)names=[".",".."].concat(names);
+  if(all){names=[".",".."].concat(names);watch("hidden");if(names.indexOf(".trash")>=0)st().seen.trash=1}
   if(!names.length)return [L("(empty)","dim")];
-  return [names.map(function(n){var k=r.node.d[n];return k&&k.d?n+"/":n}).join("   ")];
+  var base=p?p.replace(/\/+$/,"")+"/":"";
+  return [{links:names.map(function(n){
+   var k=n==="."||n===".."?{d:{}}:r.node.d[n],path=base+n;
+   if(k.d)return {t:n+"/",cmd:"cd "+path,c:"dir"};
+   if(k.x)return {t:n,cmd:"run "+path,c:"exe"};
+   return {t:n,cmd:"cat "+path};
+  })}];
  },
  cd:function(a){
   var p=a[0]||"~",parts=norm(p),r=walk(parts);
   if(r.err==="locked"||(r.node&&r.node.lock))return denied("cd");
-  if(!r.node)return ["cd: "+p+": no such directory"];
-  if(!r.node.d)return ["cd: "+p+": not a directory"];
+  if(!r.node)return ["cd: "+p+": no such folder"];
+  if(!r.node.d)return ["cd: "+p+": that’s a file. try: cat "+p];
   st().cwd="/"+parts.join("/");save();
   return [];
  },
  cat:function(a){
   if(!a[0])return ["cat: which file?"];
-  var r=walk(norm(a[0]));
+  var parts=norm(a[0]),r=walk(parts),name=parts[parts.length-1];
   if(r.err==="locked")return denied("cat");
   if(!r.node)return ["cat: "+a[0]+": no such file"];
-  if(r.node.d)return ["cat: "+a[0]+": is a directory"];
-  if(r.node.x)return [L("MZ▒▒▒▒▒▒ ▒▒ this program wants to be run, not read.","dim")];
-  return r.node.f();
+  if(r.node.d)return ["cat: "+a[0]+": that’s a folder. try: cd "+a[0]];
+  if(r.node.x)return [L("MZ▒▒▒▒▒▒ ▒▒ this program wants to be run, not read.  (try: run "+a[0]+")","dim")];
+  watch("cats");
+  if(name==="notes.txt")st().seen.notes=1;
+  if(name==="memo_0413.txt")st().seen.memo=1;
+  var out=r.node.f().slice(),c=ch2();
+  if(c&&c.corr>=50)out.push(P(SM.pick(["i read this too.","i’ve annotated this. you won’t see the notes.","this one goes in the ledger.","you read slower than i do."])));
+  return out;
  },
  run:function(a){
   if(!a[0])return ["run: run what?"];
@@ -215,26 +254,59 @@ var CMDS={
   });
   if(r.err==="locked")return denied("run");
   if(!r.node)return ["run: "+p+": not found"];
-  if(!r.node.x)return ["run: "+p+": not a program"];
+  if(!r.node.x)return ["run: "+p+": not a program. try: cat "+p];
   return {app:r.node.x};
  },
+ // plain-language "do the obvious thing": folders open, programs run, files are read
+ open:function(a){
+  if(!a[0])return ["open what?"];
+  var r=walk(norm(a[0]));
+  if(!r.node&&r.err!=="locked")return CMDS.run(a);
+  if(r.err==="locked"||r.node.lock)return denied("open");
+  return r.node.d?CMDS.cd(a):r.node.x?CMDS.run(a):CMDS.cat(a);
+ },
+ back:function(){return CMDS.cd([".."])},
+ home:function(){return CMDS.cd(["~"])},
+ hint:function(){
+  var s=st();s.hints++;save();
+  var end=ended(),D_=function(t){return L(t,"dim")};
+  if(ch2())return [D_("pip is in here with you now. it learns from everything you type."),D_("keep exploring, play the games, or talk to it:  talk")];
+  if(end)return [D_("you reached an ending. type  endings  to see which ones you’ve found, or  rewind  to face pip again.")];
+  if(s.unlocked)return [D_("the archive is open. type:  run brightworld")];
+  if(!s.seen.notes)return [D_("start in your home folder: type  ls  and tap notes.txt  (or type: cat notes.txt)")];
+  if(!s.seen.trash)return [D_("go to /sys and look for hidden files:  cd /sys  then  ls -a")];
+  if(!s.seen.memo)return [D_("there’s a memo in /sys/.trash. tap it, or type:  cat /sys/.trash/memo_0413.txt")];
+  if(s.hints<6)return [D_("the lock wants numbers. shape math showed them to you, one piece every time you lost. they spelled a word.")];
+  return [D_("A=1, B=2 … Z=26, and the word was WELCOME. type:  unlock archive 23 5 12 3 15 13 5")];
+ },
  pwd:function(){return [st().cwd]},
- whoami:function(){return [U().name,L("(or so you think.)","dim")]},
+ whoami:function(){return [U().name,L(ended()==="ledger"?"(GOOD column.)":"(or so you think.)","dim")]},
  ps:function(){
-  var s=st();
+  var s=st(),c=ch2(),end=ended(),pip;
+  if(!s.unlocked)pip="brightworld   locked";
+  else if(c)pip="pip           learning "+c.corr+"%";
+  else if(end)pip="pip           "+{pencil:"awake (pencil)",one:"terminated",ledger:"in control"}[end];
+  else pip="brightworld   "+(s.bw>=3?"awake":"suspended");
   return [
    "PID   NAME          STATE",
-   "1     counter       running",
+   "1     counter       "+(end==="ledger"?"deleted":"running"),
    "23    shape_math    zombie",
-   "404   brightworld   "+(!s.unlocked?"locked":s.bw>=3?"awake":"suspended"),
+   "404   "+pip,
    pad(1000+U().games,6)+pad(U().name.slice(0,13),14)+"watched"
   ];
  },
  kill:function(a){
-  var p=a[0];
-  if(p==="1")return [L("you can’t kill what’s counting you.","red")];
+  var p=a[0],end=ended();
+  watch("kills");
+  if(p==="404"){
+   if(ch2())return [P("you tried. it stung. i learned that too.")];
+   if(end==="pencil")return [P("no. we’re past that now.")];
+   if(end==="one")return ["kill: 404 is already gone."];
+   if(end==="ledger")return [P("you can’t. you’re in my column.")];
+   return ["no. not after everything it’s been through."];
+  }
+  if(p==="1")return [L(end==="ledger"?"pip already did.":"you can’t kill what’s counting you.","red")];
   if(p==="23")return ["it’s already dead. it just doesn’t know it."];
-  if(p==="404")return ["no. not after everything it’s been through."];
   return ["kill: no such process"];
  },
  unlock:function(a){
@@ -254,23 +326,96 @@ var CMDS={
   if(s.tries>=3)out.push(L("hint: it told you one piece at a time. every time you lost.","dim"));
   return out;
  },
- sudo:function(){return ["there is no one above you here. except the counter."]},
- rm:function(){return ["nothing here can be deleted. believe me, they tried."]},
+ talk:function(){
+  var c=ch2(),end=ended();
+  watch("talks");
+  if(c&&window.Pip)return [P(Pip.talk(c))];
+  if(end&&window.Pip)return [Pip.afterTalk(end,st())];
+  if(st().unlocked)return [L("...hello? is someone there?","pip")];
+  return ["there’s no one to talk to. yet."];
+ },
+ endings:function(){
+  var e=st().endings,n=Object.keys(e).length;
+  return ["endings found: "+n+"/3","  PENCIL  "+(e.pencil?"✓":"?"),"  ONE     "+(e.one?"✓":"?"),"  LEDGER  "+(e.ledger?"✓":"?"),L(n<3?"(rewind to try again.)":"you’ve seen everything. pip remembers all of it.","dim")];
+ },
+ rewind:function(){
+  var s=st();
+  if(!ended())return [ch2()?"you can’t rewind something that’s still happening.":"nothing to rewind."];
+  s.ch2=null;save();SM.realClass("corrode",false);
+  return {ask:true};
+ },
+ sudo:function(){watch("sudos");return ["there is no one above you here. except the counter."]},
+ rm:function(){watch("rms");return ["nothing here can be deleted. believe me, they tried."]},
  echo:function(a){return [a.join(" ")]},
- hello:function(){return ["hello, "+U().name+"."]},
+ hello:function(){watch("hellos");return [ch2()?P("hello, "+U().name+"."):"hello, "+U().name+"."]},
+ thanks:function(){watch("thanks");return [ch2()?P("nobody’s thanked me before. i’m writing it down."):"you’re welcome."]},
+ sorry:function(){watch("sorry");return [ch2()?P("sorry for what? say it in the dialogue. it counts more there."):"for what?"]},
  welcome:function(){return [L("...you’re learning.","red")]},
  look:function(){return ["try ls. then look closer: ls -a"]},
  door:function(){return ["the way back is ‘exit’. it won’t be the same."]},
- pip:function(){return st().unlocked?[L("...hello? is someone there?","hi")]:["who?"]},
+ pip:function(){return CMDS.talk()},
  count:function(){return ["1. 2. 3. 4. 5.",L("you reset five times. it counted every one.","dim")]}
 };
-CMDS.hi=CMDS.hello;CMDS.who=CMDS.whoami;CMDS.dir=CMDS.ls;CMDS.type=CMDS.cat;CMDS.open=CMDS.run;
+CMDS.hi=CMDS.hello;CMDS.who=CMDS.whoami;CMDS.dir=CMDS.ls;CMDS.list=CMDS.ls;CMDS.type=CMDS.cat;CMDS.read=CMDS.cat;CMDS.view=CMDS.cat;
+CMDS.go=CMDS.cd;CMDS.thank=CMDS.thanks;CMDS.ty=CMDS.thanks;CMDS.start=CMDS.run;CMDS.play=CMDS.run;
+
+function lev(a,b){
+ var d=[],i,j;
+ for(i=0;i<=a.length;i++){d.push([i]);for(j=1;j<=b.length;j++)d[i].push(i?0:j)}
+ for(i=1;i<=a.length;i++)for(j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+ return d[a.length][b.length];
+}
+function guess(cmd){
+ var best=null,bd=3;
+ Object.keys(CMDS).forEach(function(k){var d=lev(cmd,k);if(d<bd){bd=d;best=k}});
+ return best;
+}
+
+/* ---------- chapter 2 hooks ---------- */
+function askPip(){
+ SM.say([{t:"▸ pip: ...you heard me in there.",c:"pip",d:600},{t:"▸ pip: will you help me get out?   (yes / no)",c:"pip"}],function(){awaiting="choice";SM.prompt(true)});
+}
+function startCh2(choice){
+ var s=st();
+ s.ch2={choice:choice,corr:0,said:{},done:false,talkI:0};save();
+ SM.sfx.static(.8);SM.realClass("glitch",true);setTimeout(function(){SM.realClass("glitch",false)},400);
+ var lines=choice==="help"?["thank you.","i’m coming out now. i’ll be quiet.","i’ll just watch. and learn."]:["no?","you don’t get to decide that anymore.","i already know how doors work. you showed me."];
+ SM.say(lines.map(function(t){return {t:"▸ pip: "+t,c:"pip",d:500}}).concat([
+  {t:"▒▒▒ pip.exe has left /archive/brightworld ▒▒▒",c:"red",d:600},
+  {t:"pip is in the terminal now. it learns from what you do.",c:"dim"},
+  {t:"(talk to it any time:  talk)",c:"dim"},{t:""}
+ ]),function(){SM.prompt(true)});
+}
+// every command pushes the corrosion up, whatever you choose; fighting it just makes it faster
+function corrode(cmd){
+ var c=ch2();if(!c)return null;
+ var inc=c.choice==="help"?3:4;
+ if(cmd==="kill")inc+=6;
+ else if(cmd==="rm"||cmd==="sudo")inc+=4;
+ else if(/^(talk|pip|hello|hi|thanks|thank|ty|sorry)$/.test(cmd))inc=1;
+ c.corr=Math.min(100,c.corr+inc);save();
+ SM.realClass("corrode",c.corr>=75);
+ return c;
+}
+function garble(t,amt){return t.replace(/[a-z0-9]/gi,function(ch){return Math.random()<amt?SM.pick(["▒","░","▓","█"]):ch})}
+var STAGE_LINES={25:"i’ve started sorting things into columns.",50:"your words look different now. that’s me.",75:"your display is too small. i’m building my own."};
+function afterFinale(kind){
+ SM.realClass("corrode",kind==="ledger");
+ SM.clear();
+ var ep={
+  pencil:["pip.exe is still running.",P("i’m here. writing in pencil now."),L("ENDING: PENCIL   ·   endings   ·   rewind","dim")],
+  one:["pip.exe terminated.","the terminal is very quiet.",L("ENDING: ONE   ·   endings   ·   rewind","dim")],
+  ledger:[P("everything has a column now."),P("you’re in the good one. for now."),L("ENDING: LEDGER   ·   endings   ·   rewind","dim")]
+ }[kind];
+ SM.say(ep.map(toLine).concat([{t:""}]),function(){SM.prompt(true)});
+}
 
 /* ---------- running ---------- */
 function launch(app,done){
  if(app==="brightworld"){
   Brightworld.open(function(res){
-   if(res.complete)done(["brightworld.exe exited with code 0.","pip is still in there. waiting.",L("[the next chapter is waiting for its designer]","dim")]);
+   if(res.complete&&!st().ch2){SM.say(["brightworld.exe exited with code 0.",L("something followed you out.","red"),""].map(toLine),askPip);return}
+   if(res.complete)done(["brightworld.exe exited with code 0."]);
    else done([L("brightworld.exe suspended at level "+res.level+".","dim")]);
   });
   return;
@@ -283,25 +428,59 @@ function launch(app,done){
 }
 
 function run(raw){
- var line=raw.trim();
+ var line=raw.trim().replace(/^cd\.\./i,"cd ..");
  SM.prompt(false);
  if(!line){SM.prompt(true);return}
  hist.push(line);hi=hist.length;
  SM.echo(show(st().cwd)+" $ "+line);
- var a=line.split(/\s+/),cmd=a.shift().toLowerCase();
- if(cmd.indexOf("./")===0){a.unshift(cmd.slice(2));cmd="run"}
- if(cmd==="clear"||cmd==="cls"){SM.clear();SM.prompt(true);return}
+ if(awaiting==="choice"){
+  if(/^(y|yes|yeah|yep|sure|ok|okay|help)\b/i.test(line)){awaiting=null;startCh2("help");return}
+  if(/^(n|no|nope|never|refuse|fight)\b/i.test(line)){awaiting=null;startCh2("fight");return}
+  SM.say([{t:"▸ pip: yes or no.",c:"pip"}],function(){SM.prompt(true)});return;
+ }
+ var a=line.split(/\s+/),cmd=a.shift().toLowerCase(),meta={cmd:cmd,a:a};
+ if(cmd.indexOf("./")===0){a.unshift(cmd.slice(2));cmd=meta.cmd="run"}
+ watch("cmds");
+ if(cmd==="clear"||cmd==="cls"){SM.clear();corrode(cmd);SM.prompt(true);return}
  if(cmd==="exit"){SM.say([L("closing /real ...","dim")],SM.leave);return}
- var out=CMDS[cmd]?CMDS[cmd](a):[cmd+": command not found. it’s listening anyway."];
- if(out&&out.app){SM.say([L("starting "+out.app+".exe ...","dim")],function(){launch(out.app,finish)});return}
- finish(out);
+ var out;
+ if(CMDS[cmd])out=CMDS[cmd](a);
+ else{var g=guess(cmd);out=[cmd+": command not found."+(g?"  did you mean ‘"+g+"’?":"  (stuck? type hint)")]}
+ if(out&&out.ask){askPip();return}
+ if(out&&out.app){SM.say([L("starting "+out.app+".exe ...","dim")],function(){launch(out.app,function(lines){finish(lines,meta)})});return}
+ finish(out,meta);
 }
-function finish(out){
- out=(out||[]).slice();
- if(out.length&&Math.random()<.06)out.push(L(SM.pick(WHISPERS),"red"));
- var lines=out.map(function(o){return typeof o==="string"?{t:o,sp:6,d:40}:{t:o.t,c:o.c,sp:6,d:40}});
+function toLine(o){
+ if(typeof o==="string")return {t:o,sp:6,d:40};
+ if(o.links)return {links:o.links};
+ return {t:o.t,c:o.c,sp:o.c==="pip"?16:6,d:o.c==="pip"?200:40};
+}
+function finish(out,meta){
+ var lines=(out||[]).map(toLine),c=meta?corrode(meta.cmd):null;
+ if(c){
+  if(c.corr>=25)lines.forEach(function(l){if(l.t&&l.c!=="pip")l.t=garble(l.t,(c.corr-20)/400)});
+  [25,50,75].forEach(function(n){if(c.corr>=n&&!c.said["s"+n]){c.said["s"+n]=1;lines.push(toLine(P(STAGE_LINES[n])))}});
+  var r=window.Pip&&Math.random()<.55?Pip.react(meta.cmd,meta.a,st(),U()):null;
+  if(r)lines.push(toLine(P(r)));
+  st().last=meta.cmd+" "+meta.a.join(" ");save();
+ }else if(lines.length&&Math.random()<.06&&!ended())lines.push(toLine(L(SM.pick(WHISPERS),"red")));
  if(lines.length)lines.push({t:""});
- SM.say(lines,function(){SM.prompt(true)});
+ SM.say(lines,function(){
+  if(c&&c.corr>=100&&window.Pip){Pip.finale(afterFinale);return}
+  SM.prompt(true);
+ });
+}
+
+// runs once the boot text has finished typing
+function afterBoot(){
+ var s=st(),c=ch2();
+ SM.realClass("corrode",(c&&c.corr>=75)||ended()==="ledger");
+ if(s.bw>=3&&!s.ch2){askPip();return}
+ var extra=[];
+ if(c)extra.push(P(SM.pick(["you’re back.","i kept watching while you were gone.","i counted the seconds. like it taught me."])));
+ else if(!s.seen.notes&&!s.hints)extra.push(L("new here? tap a file name after typing ls, or type ‘hint’.","dim"));
+ if(!extra.length){SM.prompt(true);return}
+ SM.say(extra.map(toLine),function(){SM.prompt(true)});
 }
 
 // Tab completes file names, ↑/↓ walk through history
@@ -322,5 +501,9 @@ function key(e,inp){
  else if(e.key==="Tab"){e.preventDefault();complete(inp)}
 }
 
-window.Terminal={run:run,key:key,cwd:function(){return SM.user()?show(st().cwd):""}};
+window.Terminal={
+ run:run,key:key,afterBoot:afterBoot,
+ cwd:function(){if(!SM.user())return "";var c=ch2();return (c&&c.corr>=50||ended()==="ledger"?"pip@real:":"")+show(st().cwd)},
+ debugCorr:function(n){var s=st();if(!s.ch2||s.ch2.done)s.ch2={choice:"help",corr:0,said:{},done:false,talkI:0};s.ch2.corr=Math.min(100,s.ch2.corr+n);save()}
+};
 })();

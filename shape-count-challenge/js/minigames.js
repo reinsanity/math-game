@@ -71,7 +71,7 @@ function mines(body,win){
   over=true;
   cells.forEach(function(c,j){if(c.m){c.e.textContent=j===i?"👁":"💣";c.e.classList.add("o")}});
   cells[i].e.classList.add("boom");
-  info.textContent="✖ boom. it saw that.";SM.sfx.static(.4);
+  info.textContent="✖ boom. it saw that.";SM.sfx.static(.4);SM.watch("minesHit");
  }
  reset();
 }
@@ -180,11 +180,12 @@ function solitaire(body,win){
 
 /* ---------- chess ---------- */
 // you are white; the counter plays red (black) with a shallow 2-ply search.
-// simplified rules: no castling or en passant, pawns always promote to a queen.
+// castling follows the real rules (king and rook unmoved, path empty, king never in or through check);
+// no en passant, and pawns always promote to a queen.
 function chess(body,win){
  var GL={K:"♚",Q:"♛",R:"♜",B:"♝",N:"♞",P:"♟"},VAL={P:1,N:3,B:3,R:5,Q:9,K:0};
  var TAUNT=["the counter takes that.","it’s counting your pieces.","you’ve played this before. you lost then too.","it never gets tired."];
- var b,turn,sel,targets,last,over;
+ var b,turn,sel,targets,last,over,rights;
  var info=el("div","mg-info"),board=el("div","ch-board"),bar=el("div","mg-bar"),nb=el("div","mg-btn","new game");
  bar.append(nb);body.append(info,board,bar);
  nb.onclick=reset;
@@ -195,6 +196,7 @@ function chess(body,win){
   for(var r=0;r<8;r++){b.push([]);for(var c=0;c<8;c++)b[r].push(null)}
   for(c=0;c<8;c++){b[0][c]="b"+back[c];b[1][c]="bP";b[6][c]="wP";b[7][c]="w"+back[c]}
   turn="w";sel=null;targets=[];last=null;over=false;
+  rights={wK:true,wQ:true,bK:true,bQ:true}; // castling still allowed: K = kingside, Q = queenside
   info.textContent="you are white. the counter plays red.";
   render();
  }
@@ -233,14 +235,40 @@ function chess(body,win){
   N[m[0]][m[1]]=null;
   if(p[1]==="P"&&(m[2]===0||m[2]===7))p=p[0]+"Q";
   N[m[2]][m[3]]=p;
+  // a king moving two squares is castling: bring the rook across
+  if(p[1]==="K"&&Math.abs(m[3]-m[1])===2){
+   var r=m[0];
+   if(m[3]===6){N[r][5]=N[r][7];N[r][7]=null}else{N[r][3]=N[r][0];N[r][0]=null}
+  }
   return N;
+ }
+ // is (r,c) attacked by side `by`? (a stand-in piece makes pawn diagonals count on empty squares)
+ function attacked(B,r,c,by){
+  var N=B.map(function(row){return row.slice()});
+  N[r][c]=(by==="w"?"b":"w")+"P";
+  return pseudo(N,by).some(function(m){return m[2]===r&&m[3]===c});
+ }
+ function castles(B,col){
+  var r=col==="w"?7:0,opp=col==="w"?"b":"w",out=[];
+  if(B[r][4]!==col+"K"||attacked(B,r,4,opp))return out;
+  if(rights[col+"K"]&&B[r][7]===col+"R"&&!B[r][5]&&!B[r][6]&&!attacked(B,r,5,opp)&&!attacked(B,r,6,opp))out.push([r,4,r,6]);
+  if(rights[col+"Q"]&&B[r][0]===col+"R"&&!B[r][1]&&!B[r][2]&&!B[r][3]&&!attacked(B,r,3,opp)&&!attacked(B,r,2,opp))out.push([r,4,r,2]);
+  return out;
+ }
+ function loseRights(m){
+  var p=b[m[0]][m[1]];
+  if(p==="wK"){rights.wK=rights.wQ=false}
+  if(p==="bK"){rights.bK=rights.bQ=false}
+  [[7,7,"wK"],[7,0,"wQ"],[0,7,"bK"],[0,0,"bQ"]].forEach(function(k){
+   if((m[0]===k[0]&&m[1]===k[1])||(m[2]===k[0]&&m[3]===k[1]))rights[k[2]]=false;
+  });
  }
  function findK(B,col){for(var r=0;r<8;r++)for(var c=0;c<8;c++)if(B[r][c]===col+"K")return [r,c];return null}
  function inCheck(B,col){
   var k=findK(B,col);
   return !!k&&pseudo(B,col==="w"?"b":"w").some(function(m){return m[2]===k[0]&&m[3]===k[1]});
  }
- function legal(B,col){return pseudo(B,col).filter(function(m){return !inCheck(apply(B,m),col)})}
+ function legal(B,col){return pseudo(B,col).filter(function(m){return !inCheck(apply(B,m),col)}).concat(castles(B,col))}
  // from red's point of view, with a nudge toward the centre for pawns and knights
  function score(B){
   var s=0;
@@ -287,8 +315,10 @@ function chess(body,win){
   render();
  }
  function doMove(m){
-  var cap=b[m[2]][m[3]];
+  var cap=b[m[2]][m[3]],castle=b[m[0]][m[1]][1]==="K"&&Math.abs(m[3]-m[1])===2;
+  loseRights(m);
   b=apply(b,m);last=m;sel=null;targets=[];
+  if(castle)SM.sfx.tone("triangle",392,0.12,0.06);
   SM.sfx.tone(cap?"square":"triangle",cap?330:520,0.08,0.06);
   turn=turn==="w"?"b":"w";
   if(!status())return;
@@ -306,14 +336,16 @@ function chess(body,win){
   var any=legal(b,turn).length>0,chk=inCheck(b,turn);
   if(!any){
    over=true;
-   if(chk&&turn==="b"){info.textContent="✔ checkmate. you beat the counter. it will remember this.";win()}
-   else if(chk)info.textContent="✖ checkmate. the counter wins. it was counting on that.";
+   if(chk&&turn==="b"){info.textContent="✔ checkmate. you beat the counter. it will remember this.";SM.watch("chessWin");win()}
+   else if(chk){info.textContent="✖ checkmate. the counter wins. it was counting on that.";SM.watch("chessLoss")}
    else info.textContent="stalemate. nobody wins. nobody leaves.";
    render();return false;
   }
   info.textContent=chk?(turn==="w"?"check. it’s closing in.":"check."):(turn==="w"?"your move.":"the counter is thinking…");
   return true;
  }
+ // test hook: empty some squares, e.g. to set up castling
+ window.Minigames._chess={clear:function(cells){cells.forEach(function(rc){b[rc[0]][rc[1]]=null});render()}};
  reset();
 }
 

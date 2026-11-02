@@ -162,7 +162,7 @@ function open(onDone){
    else if(c==="e"){ents.push({x:x*T+2,y:y*T+6,w:12,h:10,vx:-.5,vy:0,alive:true,dead:0});grid[y][x]="."}
    else if(c==="o")total++;
   }
-  P={x:spawn.x,y:spawn.y,w:10,h:11,vx:0,vy:0,face:1,ground:false,on:null,coyote:0,buffer:0,jumpHeld:false,boost:false,idle:0};
+  P={x:spawn.x,y:spawn.y,w:10,h:11,vx:0,vy:0,face:1,ground:false,on:null,coyote:0,buffer:0,jumpHeld:false,boost:false,idle:0,inv:0};
   cam=camTarget();state="intro";timer=110;
   say(lv.intro,280);SM.brightLevel(i);
  }
@@ -194,6 +194,7 @@ function open(onDone){
 
  function updatePlayer(){
   var p=P,dir=(keys.right?1:0)-(keys.left?1:0);
+  if(p.inv>0)p.inv--;
   if(dir){p.vx+=dir*(p.ground?ACC:AIR);p.face=dir;p.idle=0}
   else{p.vx*=p.ground?.75:.95;if(Math.abs(p.vx)<.05)p.vx=0;p.idle++}
   p.vx=Math.max(-RUN,Math.min(RUN,p.vx));
@@ -232,8 +233,8 @@ function open(onDone){
    else if(e.ground){var fx=e.vx>0?e.x+e.w:e.x-1;if(!solidAt(Math.floor(fx/T),Math.floor((e.y+e.h+1)/T)))e.vx=-e.vx}
    if(e.y>ROWS*T+24){e.alive=false;continue}
    if(state==="play"&&hit(P,e)){
-    if(P.vy>0&&P.y+P.h-e.y<8){e.alive=false;e.dead=20;P.vy=STOMP;P.boost=true;SM.sfx.noise(.08,.25,600)}
-    else{die();return}
+    if(P.vy>0&&P.y+P.h-e.y<8){e.alive=false;e.dead=20;P.vy=STOMP;P.boost=true;SM.sfx.noise(.08,.25,600);SM.watch("stomps")}
+    else if(!P.inv){die();return}
    }
   }
  }
@@ -242,10 +243,15 @@ function open(onDone){
  function die(){
   if(state!=="play")return;
   state="dead";timer=50;deaths++;
-  glitch("flicker",20);SM.sfx.static(.3);
+  glitch("flicker",20);SM.sfx.static(.3);SM.watch("bwDeaths");
   say(deaths<=DEATH_LINES.length?DEATH_LINES[deaths-1]:SM.pick(DEATH_LINES),150);
  }
- function respawn(){P.x=spawn.x;P.y=spawn.y;P.vx=P.vy=0;P.boost=false;state="play"}
+ // ~2s of blinking invincibility, and anything camping the spawn point gets turned away from it,
+ // so a monster standing on the checkpoint can't kill you over and over
+ function respawn(){
+  P.x=spawn.x;P.y=spawn.y;P.vx=P.vy=0;P.boost=false;P.inv=120;state="play";
+  ents.forEach(function(e){if(e.alive&&Math.abs(e.x-spawn.x)<48)e.vx=(e.x<spawn.x?-1:1)*Math.abs(e.vx)});
+ }
  function clearLevel(){
   if(state==="clear"||state==="end")return;
   state="clear";timer=120;
@@ -358,7 +364,7 @@ function open(onDone){
   ctx.fillStyle="#ff2a55";var ex=e.vx<0?2:6;ctx.fillRect(x+ex,y+3,2,2);ctx.fillRect(x+ex+3,y+3,2,2);
  }
  function drawPlayer(){
-  if(state==="dead"&&tick%4<2)return;
+  if((state==="dead"&&tick%4<2)||(P.inv>0&&tick%6<3))return;
   var front=gk==="look"||P.idle>240,spr=front?SPR.face:(!P.ground||Math.abs(P.vx)<.3)?SPR.idle:(Math.floor(tick/6)%2?SPR.run:SPR.idle);
   var x=Math.round(P.x-cam),y=Math.round(P.y);
   if(!front&&P.face<0){ctx.save();ctx.translate(x+P.w,y);ctx.scale(-1,1);ctx.drawImage(spr,0,0);ctx.restore()}
@@ -455,12 +461,14 @@ function open(onDone){
 
  api={
   skip:function(){if(state==="clear")timer=1;else clearLevel()},
-  info:function(){return {state:state,level:lvI+1,x:Math.round(P.x),y:Math.round(P.y),ground:P.ground,got:got,total:total,deaths:deaths}}
+  info:function(){return {state:state,level:lvI+1,x:Math.round(P.x),y:Math.round(P.y),ground:P.ground,got:got,total:total,deaths:deaths,inv:P.inv}},
+  // test hook: drop an enemy right on top of pip (used to check spawn protection)
+  enemyOnPip:function(){ents.push({x:P.x,y:P.y,w:12,h:10,vx:-.5,vy:0,alive:true,dead:0})}
  };
  SM.music("bright");
  load(startLv);
  requestAnimationFrame(frame);
 }
 
-window.Brightworld={open:open,skip:function(){if(api)api.skip()},info:function(){return api?api.info():null}};
+window.Brightworld={open:open,skip:function(){if(api)api.skip()},info:function(){return api?api.info():null},enemyOnPip:function(){if(api)api.enemyOnPip()},pipSprite:SPR.face};
 })();

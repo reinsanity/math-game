@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shape Math Challenge</title>
+<!-- 01110000 01101001 01110000 · the counter can't see the console. press F12. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap">
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1c1b19;--mute:#6b6a65;--line:#dcdad2;--accent:#5b4bdb;--accent-ink:#fff;--good:#1f9d62;--bad:#d93a3a;--board:#fbfaf7;--me:#ece9ff;
@@ -125,6 +126,44 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
 #real input{flex:1;width:auto;text-align:left;background:transparent;border:0;border-bottom:1px solid #2c6b4a;color:#7dffb2;font:inherit;font-size:15px;border-radius:0;padding:4px 0}
 #real input:focus{border-color:#7dffb2}
 #real .hi{color:#fff}
+#real .pip{color:#ffd34d;text-shadow:0 0 6px rgba(255,211,77,.55)}
+#real .lnk{cursor:pointer;margin-right:16px;text-decoration:underline dotted rgba(125,255,178,.5);text-underline-offset:3px}
+#real .lnk:hover{color:#fff}
+#real .lnk.dir{color:#8fd3ff}#real .lnk.exe{color:#ffd34d}
+#real .qbar{max-width:760px;margin:10px auto 0;display:flex;gap:8px;flex-wrap:wrap}
+#real .qbar span{border:1px solid #2c6b4a;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;user-select:none}
+#real .qbar span:hover{border-color:#7dffb2}
+#real.corrode{animation:corrode 7s steps(7) infinite}
+@keyframes corrode{0%,100%{filter:none}30%{filter:hue-rotate(-70deg) saturate(1.5)}32%{filter:none}70%{filter:hue-rotate(-95deg) contrast(1.2)}72%{filter:none}}
+/* ---------- pipOS (js/pip.js) ---------- */
+#pipos{position:fixed;inset:0;z-index:65;background:#0d0a02;color:#ffd34d;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;display:flex;flex-direction:column;align-items:center;padding:20px 16px 60px;overflow:auto}
+#pipos::after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.3) 0 1px,transparent 1px 3px)}
+#pipos.shake{animation:shake .18s steps(2) infinite}
+@keyframes shake{50%{transform:translate(2px,-1px)}}
+#pipos .pbox{width:100%;max-width:760px;border:2px solid #ffd34d;border-radius:10px;padding:14px;margin-top:12px;box-shadow:0 0 30px rgba(255,211,77,.15)}
+#pipos h2{margin:0 0 10px;font-size:17px;letter-spacing:.2em}
+#pipos .line{white-space:pre-wrap;line-height:1.6;min-height:1.6em}
+#pipos .ledger{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#pipos .col h3{margin:0 0 8px;text-align:center;letter-spacing:.2em}
+#pipos .good{color:#7dffb2}#pipos .evil{color:#ff4d6d}
+#pipos .item{border:1px solid currentColor;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:13px;animation:drop .4s ease}
+#pipos .item small{display:block;opacity:.75;margin-top:2px}
+@keyframes drop{from{transform:translateY(-12px);opacity:0}}
+#pipos .pbtn{background:#ffd34d;color:#0d0a02;border:0;font:inherit;font-weight:700;font-size:15px;padding:10px 16px;border-radius:8px;cursor:pointer;box-shadow:none;margin-top:12px}
+#pipos .pbtn.ghost{background:transparent;color:#ffd34d;border:1px solid #ffd34d;font-size:12px;padding:4px 10px;margin:0}
+#pipos .bar{height:10px;border:1px solid #ff4d6d;border-radius:5px;overflow:hidden;margin:8px 0;width:100%}
+#pipos .bar i{display:block;height:100%;background:#ff4d6d;width:0;transition:width .5s}
+#pipos .top{width:100%;max-width:760px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:#ff4d6d}
+#pipos .topbar{width:100%;max-width:760px}
+#pipos canvas.face{width:150px;height:165px;image-rendering:pixelated;margin:10px 0}
+#pipos .dlg{width:100%;max-width:760px;border:2px solid #ffd34d;border-radius:10px;padding:12px 14px;min-height:100px;background:rgba(0,0,0,.4)}
+#pipos .who{font-weight:700;margin-bottom:6px;letter-spacing:.1em}
+#pipos .who.you{color:#8fd3ff}
+#pipos .choices{display:flex;flex-direction:column;gap:8px;width:100%;max-width:760px;margin-top:10px}
+#pipos .choices button{text-align:left;background:transparent;color:#8fd3ff;border:1px solid #2f5d7a;font:inherit;font-size:15px;font-weight:400;padding:10px 12px;border-radius:8px;cursor:pointer;box-shadow:none}
+#pipos .choices button:hover{border-color:#8fd3ff;background:rgba(143,211,255,.08)}
+#pipos .endcard{text-align:center;margin-top:30px}
+#pipos .endcard b{display:block;font-size:clamp(28px,7vw,54px);letter-spacing:.25em;color:#fff;text-shadow:0 0 18px #ffd34d;margin:8px 0}
 /* ---------- app windows (minigames, brightworld) ---------- */
 #app{position:fixed;inset:0;z-index:55;background:rgba(2,6,4,.94);display:flex;align-items:center;justify-content:center;padding:10px}
 #app .win{width:100%;max-height:100%;display:flex;flex-direction:column;background:#0b120e;border:2px solid #2c6b4a;border-radius:8px;box-shadow:0 0 30px rgba(125,255,178,.15);color:#7dffb2;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
@@ -174,7 +213,7 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
 
 <div id="start">
   <div class="card center">
-    <h1><span class="sym">+</span> Shape Math <span class="sym">×</span></h1>
+    <h1 id="title"><span class="sym">+</span> Shape Math <span class="sym">×</span></h1>
     <div class="symrow"><b>+</b><b>−</b><b>×</b><b>÷</b></div>
     <p class="mute">Count the shapes, do the math, beat the clock!</p>
     <ul style="text-align:left;max-width:520px;margin:12px auto">
@@ -248,6 +287,7 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
 <div id="real" class="hidden">
   <div class="term" id="term"></div>
   <div class="inrow hidden" id="inrow"><span id="prompt">$</span><input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command"></div>
+  <div class="qbar" id="qbar"><span data-c="ls">ls</span><span data-c="cd ..">⬑ back</span><span data-c="cd ~">⌂ home</span><span data-c="hint">? hint</span><span data-c="help">help</span><span data-c="talk">talk</span></div>
 </div>
 <div id="app" class="hidden"></div>
 <button class="mutebtn" id="mute" aria-label="Toggle sound">🔊</button>
@@ -407,7 +447,10 @@ function whispers(){
 function corrupt(){
  var c=resets(),lt=letters(leaked(c)),fl=document.querySelectorAll(".floaters span");
  for(var i=0;i<fl.length;i++){var on=c>=3&&i<lt.length;fl[i].textContent=on?lt[i]:FLOAT_SYMS[i];fl[i].classList.toggle("lt",on)}
- var done=c>=FRONT_RESETS;
+ var done=c>=FRONT_RESETS,u=user(),ledger=!!(u&&u.term&&u.term.ch2&&u.term.ch2.ending==="ledger");
+ // the LEDGER ending leaves pip in charge of the front too
+ $("title").textContent=ledger?"◉ Pip Math ◉":"";
+ if(!ledger)$("title").innerHTML='<span class="sym">+</span> Shape Math <span class="sym">×</span>';
  $("whi").textContent=done?"WELCOME back":"Welcome back";
  $("goBtn").textContent=done?"Continue":"Start game";
 }
@@ -458,6 +501,15 @@ function say(lines,done){
   if(L.c)el.className=L.c;
   $("term").appendChild(el);$("real").scrollTop=1e9;
   if(L.fn){L.fn(el,next);return}
+  // clickable names (ls output): tapping one runs its command
+  if(L.links){
+   L.links.forEach(function(k){
+    var s=document.createElement("span");s.className="lnk"+(k.c?" "+k.c:"");s.textContent=k.t;
+    s.onclick=function(e){e.stopPropagation();runIfReady(k.cmd)};
+    el.appendChild(s);
+   });
+   setTimeout(next,60);return;
+  }
   var s=L.t||"",k=0,sp=L.sp||22;
   (function ch(){el.textContent=s.slice(0,k);if(k&&s[k-1]!==" ")sfxKey();k++;if(k<=s.length)setTimeout(ch,sp);else setTimeout(next,L.d||250)})();
  })();
@@ -495,7 +547,7 @@ function bootReal(first){
   {t:"Welcome back, "+nm+". You left the door open.",d:400},
   {t:"type 'help'.",c:"dim"}
  ];
- say(lines,function(){prompt(true)});
+ say(lines,function(){if(window.Terminal)Terminal.afterBoot();else prompt(true)});
 }
 
 // commands live in js/terminal.js; these are the bits of the screen it drives
@@ -505,6 +557,7 @@ function prompt(show){
  if(show){$("cmd").focus();$("real").scrollTop=1e9}
 }
 function echo(t){var d=document.createElement("div");d.className="dim";d.textContent=t;$("term").appendChild(d);$("real").scrollTop=1e9}
+function runIfReady(cmd){if(window.Terminal&&!$("inrow").classList.contains("hidden"))Terminal.run(cmd)}
 
 // app window over the terminal, used by js/minigames.js and js/brightworld.js
 var appClose=null;
@@ -534,7 +587,8 @@ function initDebug(){
  function set(n){var u=user();if(!u)return;u.resets=Math.max(0,n);saveAccounts();showAccount();renderLB();refresh()}
  function term(k,v){var u=user();if(!u)return;u.term=u.term||{};u.term[k]=v;saveAccounts()}
  [["−1",function(){set(resets()-1)}],["+1",function(){set(resets()+1)}],["0",function(){set(0)}],["reveal",function(){if(!user())return;set(FRONT_RESETS);bootReal(true)}],
-  ["unlock",function(){term("unlocked",true)}],["skip lvl",function(){if(window.Brightworld)Brightworld.skip()}],["wipe /real",function(){var u=user();if(u){delete u.term;saveAccounts()}}]].forEach(function(b){
+  ["unlock",function(){term("unlocked",true)}],["skip lvl",function(){if(window.Brightworld)Brightworld.skip()}],
+  ["pip +25%",function(){if(window.Terminal&&user())Terminal.debugCorr(25)}],["wipe /real",function(){var u=user();if(u){delete u.term;saveAccounts()}}]].forEach(function(b){
   var el=document.createElement("button");el.textContent=b[0];el.onclick=b[1];p.appendChild(el);
  });
  document.body.appendChild(p);refresh();setInterval(refresh,1000);
@@ -564,7 +618,7 @@ function setMusic(mode){
  AU.want=mode;
  if(!AU.ctx||AU.mode===mode)return;
  stopMusic();AU.mode=mode;
- if(mode==="front")startFront();else if(mode==="terminal")startHum();else if(mode==="bright")startBright();
+ if(mode==="front")startFront();else if(mode==="terminal")startHum();else if(mode==="bright")startBright();else if(mode==="pip")startPip();
 }
 // brightworld cuts the music out for a moment whenever the screen glitches
 function glitchAudio(ms){
@@ -637,6 +691,23 @@ function startBright(){
    next+=spb;step=(step+1)%MEL2.length;
   }
  },25);
+}
+
+// pipOS: a low swelling drone with brightworld's melody half-remembered over it
+function startPip(){
+ var x=AU.ctx,o=x.createOscillator(),lp=x.createBiquadFilter(),g=x.createGain(),lfo=x.createOscillator(),lg=x.createGain();
+ o.type="sawtooth";o.frequency.value=55;lp.type="lowpass";lp.frequency.value=260;g.gain.value=0.07;
+ o.connect(lp);lp.connect(g);g.connect(AU.bus);o.start();
+ lfo.frequency.value=0.15;lg.gain.value=140;lfo.connect(lg);lg.connect(lp.frequency);lfo.start();
+ AU.nodes.push(o,lfo);
+ var step=0,next=x.currentTime+0.2;
+ AU.loop=setInterval(function(){
+  while(next<x.currentTime+0.3){
+   var m=MEL2[step];
+   if(m&&Math.random()<.7)blip("triangle",mtof(m-12)*Math.pow(2,rnd(-25,25)/1200),next,0.6,0.04);
+   next+=0.6;step=(step+1)%MEL2.length;
+  }
+ },50);
 }
 
 // terminal: fan noise, mains hum, data chirps and the odd faint note
@@ -932,7 +1003,10 @@ window.SM={
  user:user,save:saveAccounts,resets:resets,
  say:say,echo:echo,clear:termClear,prompt:prompt,leave:leaveReal,boot:bootReal,
  openApp:openApp,closeApp:closeApp,
- music:setMusic,brightLevel:function(n){AU.brightC=n},glitchAudio:glitchAudio,
+ music:setMusic,brightLevel:function(n){AU.brightC=n},glitchAudio:glitchAudio,muted:function(){return AU.muted},
+ realClass:function(c,on){$("real").classList.toggle(c,!!on)},
+ // pip learns from these counters (u.term.watch)
+ watch:function(k,n){var u=user();if(!u)return;var t=u.term||(u.term={}),w=t.watch||(t.watch={});w[k]=(w[k]||0)+(n||1);saveAccounts()},
  sfx:{
   static:sfxStatic,key:sfxKey,
   tone:function(type,f,dur,vol){if(AU.ctx)blip(type,f,AU.ctx.currentTime,dur,vol,AU.master)},
@@ -941,6 +1015,7 @@ window.SM={
  rnd:rnd,pick:pick,shuffle:shuffle
 };
 $("cmd").addEventListener("keydown",function(e){if(window.Terminal)Terminal.key(e,e.target)});
+Array.prototype.forEach.call(document.querySelectorAll("#qbar span"),function(b){b.addEventListener("click",function(e){e.stopPropagation();runIfReady(b.getAttribute("data-c"))})});
 $("real").addEventListener("click",function(){if(!$("inrow").classList.contains("hidden")&&!window.getSelection().toString())$("cmd").focus()});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeApp()});
 initDebug();
@@ -960,5 +1035,6 @@ if(!user()&&Object.keys(accounts).length)showTab(false);
 <script src="js/terminal.js"></script>
 <script src="js/minigames.js"></script>
 <script src="js/brightworld.js"></script>
+<script src="js/pip.js"></script>
 </body>
 </html>
