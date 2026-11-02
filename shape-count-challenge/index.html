@@ -137,6 +137,8 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
 @keyframes corrode{0%,100%{filter:none}30%{filter:hue-rotate(-70deg) saturate(1.5)}32%{filter:none}70%{filter:hue-rotate(-95deg) contrast(1.2)}72%{filter:none}}
 /* ---------- pipOS (js/pip.js) ---------- */
 #pipos{position:fixed;inset:0;z-index:65;background:#0d0a02;color:#ffd34d;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;display:flex;flex-direction:column;align-items:center;padding:20px 16px 60px;overflow:auto}
+#pipos{animation:pipin .45s steps(6)}
+@keyframes pipin{0%{opacity:0;filter:brightness(3)}50%{opacity:.7}100%{opacity:1;filter:none}}
 #pipos::after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.3) 0 1px,transparent 1px 3px)}
 #pipos.shake{animation:shake .18s steps(2) infinite}
 @keyframes shake{50%{transform:translate(2px,-1px)}}
@@ -618,6 +620,10 @@ function setMusic(mode){
  AU.want=mode;
  if(!AU.ctx||AU.mode===mode)return;
  stopMusic();AU.mode=mode;
+ if(!mode)return;
+ // every new track swells in instead of starting at full volume
+ var t=AU.ctx.currentTime,g=AU.bus.gain;
+ g.setValueAtTime(0.0001,t);g.exponentialRampToValueAtTime(1,t+({pip:4,terminal:2.5,bright:1.5}[mode]||1));
  if(mode==="front")startFront();else if(mode==="terminal")startHum();else if(mode==="bright")startBright();else if(mode==="pip")startPip();
 }
 // brightworld cuts the music out for a moment whenever the screen glitches
@@ -629,8 +635,10 @@ function glitchAudio(ms){
 }
 function stopMusic(){
  clearInterval(AU.loop);AU.loop=null;
- var b=AU.bus;b.gain.setTargetAtTime(0,AU.ctx.currentTime,0.08);setTimeout(function(){b.disconnect()},600);
- AU.nodes.forEach(function(n){try{n.stop(AU.ctx.currentTime+0.5)}catch(e){}});AU.nodes=[];AU.drone=null;
+ // the old track fades out under the new one rather than cutting
+ var b=AU.bus,t=AU.ctx.currentTime;b.gain.cancelScheduledValues(t);b.gain.setValueAtTime(b.gain.value,t);b.gain.setTargetAtTime(0,t,0.35);
+ setTimeout(function(){b.disconnect()},2200);
+ AU.nodes.forEach(function(n){try{n.stop(t+2)}catch(e){}});AU.nodes=[];AU.drone=null;
  AU.bus=AU.ctx.createGain();AU.bus.connect(AU.master);
 }
 

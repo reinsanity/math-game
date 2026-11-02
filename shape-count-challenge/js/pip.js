@@ -10,18 +10,49 @@ var SM=window.SM;
 /* ---------- voice (browser speech synthesis; respects the mute button) ---------- */
 var voiceOn=true;
 try{voiceOn=localStorage.getItem("sm_voice")!=="0"}catch(e){}
-function speak(t,who){
- if(!voiceOn||SM.muted()||!window.speechSynthesis)return;
- try{
-  speechSynthesis.cancel();
-  var u=new SpeechSynthesisUtterance(t.replace(/\.\.\./g,", ").replace(/[▸▒]/g,""));
-  var vs=speechSynthesis.getVoices().filter(function(v){return /^en/i.test(v.lang)});
-  if(who==="pip"){u.pitch=1.7;u.rate=1.02;if(vs.length)u.voice=vs[vs.length-1]}
-  else{u.pitch=0.9;u.rate=1;if(vs.length)u.voice=vs[0]}
-  speechSynthesis.speak(u);
- }catch(e){}
+// done fires when the line has finished being spoken (or straight away if there's no voice).
+// The scene waits for it, so the next line never cancels this one halfway through.
+var cur=null,keep=null,voices=[];
+function loadVoices(){try{voices=speechSynthesis.getVoices().filter(function(v){return /^en/i.test(v.lang)})}catch(e){}}
+if(window.speechSynthesis){loadVoices();speechSynthesis.addEventListener("voiceschanged",loadVoices)}
+// local voices start instantly and don't hit chrome's ~15s cut-off that the online ones do
+function voiceFor(who){
+ var local=voices.filter(function(v){return v.localService}),vs=local.length?local:voices;
+ return vs.length?(who==="pip"?vs[vs.length-1]:vs[0]):null;
 }
-function hush(){try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}}
+function speak(t,who,done){
+ var fin=function(){if(done){var d=done;done=null;d()}};
+ if(!voiceOn||SM.muted()||!window.speechSynthesis||!t||!voices.length){setTimeout(fin,0);return}
+ try{
+  hush();
+  var u=new SpeechSynthesisUtterance(t.replace(/\.\.\./g,", ").replace(/[▸▒]/g,""));
+  var v=voiceFor(who);if(v)u.voice=v;
+  if(who==="pip"){u.pitch=1.7;u.rate=1.02}else{u.pitch=0.9;u.rate=1}
+  // safety net in case the browser never reports the end
+  var guard=setTimeout(end,2500+t.length*110);
+  function end(){if(cur!==u)return;cur=null;clearTimeout(guard);clearInterval(keep);fin()}
+  u.onend=u.onerror=end;
+  var started=false;u.onstart=function(){started=true};
+  u.fin=fin;
+  cur=u; // holding a reference stops chrome garbage-collecting it mid-sentence
+  // chrome needs a little gap after cancel() or it drops the new line
+  setTimeout(function(){
+   if(cur!==u)return;
+   speechSynthesis.speak(u);
+   setTimeout(function(){if(!started)end()},2000); // never got going: don't hold the scene up
+   keep=setInterval(function(){if(speechSynthesis.speaking&&!speechSynthesis.paused){speechSynthesis.pause();speechSynthesis.resume()}},10000);
+  },60);
+ }catch(e){setTimeout(fin,0)}
+}
+// stops speech; the interrupted line's done is dropped (whoever hushed decides what's next)
+function hush(){
+ cur=null;clearInterval(keep);
+ try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
+}
+// clicking to skip: cut the line short but carry on as if it finished
+function skipSpeech(){var u=cur;hush();if(u&&u.fin)u.fin()}
+// waits for n callbacks, then calls done
+function join(n,done){return function(){if(--n===0)done()}}
 
 /* ---------- learning: reactions in the terminal ---------- */
 function clock(){return new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}
@@ -86,15 +117,16 @@ function type(node,text,speed,done){
   if(k++<text.length)setTimeout(ch,speed);else{typing=null;if(done)done()}
  })();
 }
-function skipTyping(){if(typing){var t=typing;typing=null;t.node.textContent=t.text;if(t.done)t.done()}}
-// types several lines into a box, pip saying each one
+function skipTyping(){if(typing){var t=typing;typing=null;t.node.textContent=t.text;if(t.done)t.done()}skipSpeech()}
+// types several lines into a box, pip saying each one; the next line waits for both
 function seq(box,lines,done){
  var i=0;
  (function next(){
   if(i>=lines.length){if(done)done();return}
-  var t=lines[i++],d=el("div","line");box.appendChild(d);
-  if(t)speak(t,"pip");
-  type(d,t,26,function(){setTimeout(next,t?450:150)});
+  var t=lines[i++],d=el("div","line"),j=join(2,function(){setTimeout(next,t?220:80)});
+  box.appendChild(d);
+  speak(t,"pip",j);
+  type(d,t,18,j);
  })();
 }
 function btn(box,label,fn){var b=el("button","pbtn",label);b.onclick=function(){hush();fn()};box.appendChild(b);return b}
@@ -170,7 +202,7 @@ function finale(onDone){
    d.appendChild(el("small",null,it[2]));
    (it[1]==="GOOD"?good:evil).appendChild(d);
    SM.sfx.tone("square",it[1]==="GOOD"?660:220,0.08,0.05);
-   setTimeout(next,1000);
+   setTimeout(next,550);
   })();
   function apply(){
    var tail=el("div","pbox");root.appendChild(tail);
@@ -213,7 +245,7 @@ function finale(onDone){
  function dialogue(){
   clear();
   var top=el("div","top"),pct=el("span"),vb=el("button","pbtn ghost",voiceOn?"voice: on":"voice: off");
-  vb.onclick=function(){voiceOn=!voiceOn;try{localStorage.setItem("sm_voice",voiceOn?"1":"0")}catch(e){}vb.textContent=voiceOn?"voice: on":"voice: off";if(!voiceOn)hush()};
+  vb.onclick=function(){voiceOn=!voiceOn;try{localStorage.setItem("sm_voice",voiceOn?"1":"0")}catch(e){}vb.textContent=voiceOn?"voice: on":"voice: off";if(!voiceOn)skipSpeech()};
   top.append(pct,vb);
   var tb=el("div","topbar");tb.appendChild(barEl());
   bars.push(function(v){pct.textContent="LEDGER APPLIED: "+v+"%"});setLedger(ledger);
@@ -223,20 +255,24 @@ function finale(onDone){
   root.append(top,tb,pfx,dlg,choices);
   go("n0");
  }
- function line(name,t,cls,done){who.textContent=name;who.className="who "+cls;speak(t,cls);type(txt,t,cls==="pip"?30:24,done)}
+ function line(name,t,cls,done){
+  var j=join(2,done);
+  who.textContent=name;who.className="who "+cls;
+  speak(t,cls,j);type(txt,t,cls==="pip"?26:22,j);
+ }
  function go(id){
   if(id.indexOf("END_")===0){ending(id);return}
   var n=NODES[id],t=typeof n.pip==="function"?n.pip():n.pip;
   choices.replaceChildren();
   setLedger(ledger+4);
   line("PIP",t,"pip",function(){
-   if(n.next){setTimeout(function(){go(n.next)},900);return}
+   if(n.next){setTimeout(function(){go(n.next)},500);return}
    n.ch.forEach(function(c){
     var b=el("button",null,c[0]);
     b.onclick=function(){
      hush();choices.replaceChildren();
      if(c[2])Object.keys(c[2]).forEach(function(k){score[k]+=c[2][k]});
-     line(u.name.toUpperCase(),c[0],"you",function(){setTimeout(function(){go(c[1])},600)});
+     line(u.name.toUpperCase(),c[0],"you",function(){setTimeout(function(){go(c[1])},400)});
     };
     choices.appendChild(b);
    });
@@ -248,7 +284,7 @@ function finale(onDone){
   (function next(){
    if(i>=lines.length){fn();return}
    var l=lines[i++];
-   line(l[0]==="you"?u.name.toUpperCase():"PIP",l[1],l[0]==="you"?"you":"pip",function(){setTimeout(next,900)});
+   line(l[0]==="you"?u.name.toUpperCase():"PIP",l[1],l[0]==="you"?"you":"pip",function(){setTimeout(next,500)});
   })();
  }
  function ending(id){
