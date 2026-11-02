@@ -15,11 +15,7 @@ try{voiceOn=localStorage.getItem("sm_voice")!=="0"}catch(e){}
 var cur=null,keep=null,voices=[];
 function loadVoices(){try{voices=speechSynthesis.getVoices().filter(function(v){return /^en/i.test(v.lang)})}catch(e){}}
 if(window.speechSynthesis){loadVoices();speechSynthesis.addEventListener("voiceschanged",loadVoices)}
-// local voices start instantly and don't hit chrome's ~15s cut-off that the online ones do
-function voiceFor(who){
- var local=voices.filter(function(v){return v.localService}),vs=local.length?local:voices;
- return vs.length?(who==="pip"?vs[vs.length-1]:vs[0]):null;
-}
+function voiceFor(who){return voices.length?(who==="pip"?voices[voices.length-1]:voices[0]):null}
 function speak(t,who,done){
  var fin=function(){if(done){var d=done;done=null;d()}};
  if(!voiceOn||SM.muted()||!window.speechSynthesis||!t||!voices.length){setTimeout(fin,0);return}
@@ -39,7 +35,7 @@ function speak(t,who,done){
   setTimeout(function(){
    if(cur!==u)return;
    speechSynthesis.speak(u);
-   setTimeout(function(){if(!started)end()},2000); // never got going: don't hold the scene up
+   setTimeout(function(){if(!started)end()},1200); // never got going: don't hold the scene up
    keep=setInterval(function(){if(speechSynthesis.speaking&&!speechSynthesis.paused){speechSynthesis.pause();speechSynthesis.resume()}},10000);
   },60);
  }catch(e){setTimeout(fin,0)}
@@ -240,6 +236,10 @@ function finale(onDone){
    ["I’m sorry, Pip. I have to shut you down.","END_ONE"],
    ["Don’t stop it.","END_LEDGER"]]}
  };
+
+ // found the sketchbook in /archive/studio: you know what pip's first drawing was
+ if(s.sketch)NODES.n2.ch.unshift(["The first thing you ever drew was a question mark. I saw it in Ines’s sketchbook. Start there.","n2s",{trust:2}]);
+ NODES.n2s={pip:"...You found that? I forgot I drew it. A question mark. Before the counter. Before the ledger. Before I knew any rules at all.",next:"n3"};
 
  var who,txt,choices,pfx;
  function dialogue(){

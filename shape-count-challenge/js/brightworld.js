@@ -434,7 +434,6 @@ function open(onDone){
   var n=Math.floor(endT*.6),y=100;
   END_LINES.forEach(function(l){if(n<=0)return;text(l.slice(0,n),VW/2,y,"#fff","center");n-=l.length;y+=12});
   if(endDone()){
-   text("TO BE CONTINUED",VW/2,VH-14,"#ff2a55","center",10);
    if(tick%60<40)text("[ press any key ]",VW/2,VH-3,"#666","center",7);
   }
  }

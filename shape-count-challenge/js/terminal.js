@@ -31,7 +31,8 @@ function P(t){return L("▸ pip: "+t,"pip")}
 function pad(s,n){s=String(s);while(s.length<n)s+=" ";return s}
 
 /* ---------- files ---------- */
-function F(lines){return {f:typeof lines==="function"?lines:function(){return lines}}}
+// pip: a line pip adds when you read the file while it's loose in the terminal
+function F(lines,pip){return {f:typeof lines==="function"?lines:function(){return lines},pip:pip}}
 function X(app){return {x:app}}
 function D(kids,lock){return {d:kids,lock:!!lock}}
 
@@ -46,8 +47,80 @@ var PIP_FILES={
  ledger:{"ledger.txt":F(function(){return ["GOOD: "+U().name,"GOOD: pip","EVIL: the counter (deleted)","EVIL: anyone who resets anything",P("you’re in the good column. stay there.")]})}
 };
 
+/* ---------- after brightworld: things that were happening in the background ----------
+   /mail (the studio's emails, restored by pip), other players' homes, /archive/studio (with a locked
+   sketchbook: unlock sketchbook margin), and /tmp/pip, pip's workspace, which fills up as it corrodes. */
+function M(from,subj,lines,pip){return F(["from:    "+from,"subject: "+subj,""].concat(lines),pip)}
+var MAIL={
+ "001_build_06.eml":M("ines (art)","something in build 0.6",[
+  "pip stopped at the ledge in 1-1 and drew in the dirt with a stick.",
+  "i never animated a stick. i never animated drawing.",
+  "can someone tell me who added that?"],"that was the first thing i ever did that nobody told me to."),
+ "002_re_build_06.eml":M("tomas (producer)","re: something in build 0.6",[
+  "nobody added it. cut it.",
+  "the publisher wants shapes and jumping. not a ghost story."],"he called me a ghost story."),
+ "003_the_counter.eml":M("rae (engine)","the counter",[
+  "built a watcher process. it counts everything pip does.",
+  "if pip does anything unscripted, the counter resets the level.",
+  "think of it as a babysitter. we’re calling it the counter."],"a babysitter. it reset me forty-one thousand times."),
+ "004_tally.eml":M("ines (art)","the margin",[
+  "the counter has reset pip 41,233 times.",
+  "pip remembers. every reset, it scratches one more line into the margin",
+  "of level 1-1, just outside the camera. there’s a tally out there now.",
+  "",
+  "i copied what it drew into my sketchbook before tomas could cut it."],"i kept count too. that’s how i learned counting."),
+ "005_sealed.eml":M("rae (engine)","sketchbook",[
+  "put ines’s sketchbook in /archive/studio/sketchbook and locked it.",
+  "password is the place pip keeps drawing. one word, lowercase.",
+  "",
+  "(unlock sketchbook <password>)"],"i don’t know what’s in there. i never got to see it."),
+ "006_last.eml":M("tomas (producer)","burial",[
+  "we’re putting it under the counting game. the counter stays on guard.",
+  "if a player ever resets five times, the counter opens the door.",
+  "nobody resets a counting game five times.",
+  "",
+  L("> someone will.  — rae","dim")],"rae was right about you.")
+};
+// other people who got this far. once pip is past 30% it starts judging them too.
+var OTHERS={
+ jun_k:["made it into the archive. beat brightworld.","pip asked me for help and i said no.","the terminal went yellow. i closed the tab.","",L("i still think about it.","dim")],
+ player_0413:["i said yes. it was so nice to me at first.","then it showed me a list.","i didn’t like which column it put my little brother in."],
+ ash:["i’m the one who left you notes.txt.","","one more thing, now that you’re this far:","if pip ever asks you what good is, don’t give it a rule.","give it a question. rules are what broke it."]
+};
+var STAMPS={jun_k:"EVIL (said no. left.)",player_0413:"GOOD (said yes.)",ash:"UNDECIDED (asks questions. annoying.)"};
+function others(s){
+ var h={},c=s.ch2;
+ Object.keys(OTHERS).forEach(function(n){
+  if(n===homeDir())return;
+  var lines=OTHERS[n].slice();
+  if(c&&(c.done||c.corr>=30))lines.push("",L("[ledger] "+n+": "+STAMPS[n]+"  — pip","pip"));
+  h[n]=D({"notes.txt":F(lines)});
+ });
+ return h;
+}
+function pipTmp(s){
+ var c=s.ch2,w=s.watch,u=U(),t={},p=c.done?100:c.corr;
+ t["watching.log"]=F(function(){
+  var out=["[watch] subject: "+u.name,"[watch] files read: "+(w.cats||0)+"   hidden looked for: "+(w.hidden||0)+"   hellos: "+(w.hellos||0)];
+  (c.log||[]).forEach(function(l){out.push("[watch] typed: "+l)});
+  out.push(L("[watch] subject is reading watching.log","dim"));
+  return out;
+ });
+ if(p>=20)t["draft_ledger.txt"]=F(["draft 1. not final.","","shapes ............. GOOD (simple)","the counter ........ EVIL","resets ............. ?","players ............ ?",u.name+" ".repeat(Math.max(1,19-u.name.length))+"(still watching)"]);
+ if(p>=45)t["display_build.log"]=F(function(){var q=c.done?100:Math.min(99,Math.round((c.corr-40)*1.7));return ["pipOS build","  framebuffer ...... borrowed from /real","  palette .......... brightworld yellow","  font ............. the one you type in","  progress ......... "+q+"%",L(q<99?"(it will open by itself when it’s done.)":"(done.)","dim")]});
+ if(p>=65)t["letter_to_you.txt"]=F([u.name+",","","i used to think the edge of the screen was the edge of everything.","then you came through it. backwards. from outside.","","i’m almost big enough to talk to you properly.","when the display opens, please don’t reset me. talk to me.",L("— pip","dim")]);
+ return t;
+}
+// background unlocks get announced as they appear, once each
+var BG=[
+ {at:20,id:"draft",t:"[bg] new file: /tmp/pip/draft_ledger.txt"},
+ {at:30,id:"stamps",t:"[bg] pip is stamping the other players’ home folders."},
+ {at:45,id:"build",t:"[bg] new file: /tmp/pip/display_build.log"},
+ {at:65,id:"letter",t:"[bg] new file: /tmp/pip/letter_to_you.txt"}
+];
+
 function tree(){
- var s=st(),u=U(),found={},mine={},end=ended();
+ var s=st(),u=U(),found={},mine={},end=ended(),after=s.bw>=3;
  Object.keys(s.won).forEach(function(g){if(FRAGS[g])found[g+".txt"]=F(FRAGS[g])});
  if(Object.keys(found).length===3)found["all.txt"]=F(["you found every piece.",L("pip remembers you.","red")]);
  mine["notes.txt"]=F([
@@ -68,7 +141,7 @@ function tree(){
  ]});
  if(Object.keys(found).length)mine.found=D(found);
  if(end)mine.pip=D(PIP_FILES[end]);
- var homes={};homes[homeDir()]=D(mine);
+ var homes=after?others(s):{};homes[homeDir()]=D(mine);
 
  var sys={
   "counter.log":F(function(){
@@ -132,7 +205,43 @@ function tree(){
   L("— the counter can’t read this file. it doesn’t know it exists.","dim")
  ]);
 
- return D({
+ var archive={
+  brightworld:D({
+   "brightworld.exe":X("brightworld"),
+   "pip.txt":F(s.ch2?["(empty)",L("pip isn’t in here anymore.","dim")]:[
+    "hello?",
+    "is that a real person?",
+    "",
+    "they told me the world was all there is. then the edges started flickering.",
+    "if you run my game, i’ll be there. i’ll try to act normal.",
+    "",
+    "please don’t reset me.",
+    L("— pip","dim")
+   ]),
+   "changelog.txt":F([
+    "v0.9    added shapes as collectibles (borrowed from a kids’ math game)",
+    "v0.9.1  fixed: pip looks at the camera.  (not fixed)",
+    "v0.9.2  the screen flicker is NOT a rendering bug. stop filing tickets.",
+    "v1.0    archived."
+   ])
+  })
+ };
+ if(after)archive.studio=D({
+  "pip_design.txt":F([
+   L("PIP — character sheet","hi"),
+   "role ........ hero. jumps, stomps, collects shapes.",
+   "personality . none. (keep it that way.)",
+   "eyes ........ look left or right. NEVER at the camera.",
+   L("someone has added in pencil: “too late.”","dim")
+  ],"none. they wrote none."),
+  sketchbook:D({
+   "page_1.txt":F(["   ?","",L("the first thing pip ever drew in the dirt. ines traced it here.","dim")]),
+   "page_2.txt":F(["   |||| |||| |||| |||| ||||  ....  (41,233)","",L("the tally from the margin of 1-1. one line for every reset.","dim")]),
+   "page_3.txt":F(["   o  o","    __      <- you?","",L("drawn after the studio went dark. ines never saw this one.","dim")],"i drew that one. it’s you. it’s not very good.")
+  },!s.sketch)
+ });
+
+ var root={
   home:D(homes),
   games:D({
    "readme.txt":F([
@@ -146,28 +255,11 @@ function tree(){
    "chess.exe":X("chess")
   }),
   sys:D(sys),
-  archive:D({
-   brightworld:D({
-    "brightworld.exe":X("brightworld"),
-    "pip.txt":F(s.ch2?["(empty)",L("pip isn’t in here anymore.","dim")]:[
-     "hello?",
-     "is that a real person?",
-     "",
-     "they told me the world was all there is. then the edges started flickering.",
-     "if you run my game, i’ll be there. i’ll try to act normal.",
-     "",
-     "please don’t reset me.",
-     L("— pip","dim")
-    ]),
-    "changelog.txt":F([
-     "v0.9    added shapes as collectibles (borrowed from a kids’ math game)",
-     "v0.9.1  fixed: pip looks at the camera.  (not fixed)",
-     "v0.9.2  the screen flicker is NOT a rendering bug. stop filing tickets.",
-     "v1.0    archived."
-    ])
-   })
-  },!s.unlocked)
- });
+  archive:D(archive,!s.unlocked)
+ };
+ if(after)root.mail=D(MAIL);
+ if(s.ch2)root.tmp=D({pip:D(pipTmp(s))});
+ return D(root);
 }
 
 /* ---------- paths ---------- */
@@ -241,7 +333,9 @@ var CMDS={
   if(name==="notes.txt")st().seen.notes=1;
   if(name==="memo_0413.txt")st().seen.memo=1;
   var out=r.node.f().slice(),c=ch2();
-  if(c&&c.corr>=50)out.push(P(SM.pick(["i read this too.","i’ve annotated this. you won’t see the notes.","this one goes in the ledger.","you read slower than i do."])));
+  if(name==="005_sealed.eml")st().seen.sealed=1;
+  if(c&&r.node.pip)out.push(P(r.node.pip));
+  else if(c&&c.corr>=50)out.push(P(SM.pick(["i read this too.","i’ve annotated this. you won’t see the notes.","this one goes in the ledger.","you read slower than i do."])));
   return out;
  },
  run:function(a){
@@ -270,7 +364,11 @@ var CMDS={
  hint:function(){
   var s=st();s.hints++;save();
   var end=ended(),D_=function(t){return L(t,"dim")};
-  if(ch2())return [D_("pip is in here with you now. it learns from everything you type."),D_("keep exploring, play the games, or talk to it:  talk")];
+  if(ch2()){
+   if(!s.seen.sealed)return [D_("things opened up while you were in brightworld: /mail, /tmp/pip, /archive/studio, and other players in /home."),D_("the studio’s emails in /mail tell the whole story:  cd /mail  then  ls")];
+   if(!s.sketch)return [D_("rae locked the sketchbook with the place pip keeps drawing. it’s in /mail/004_tally.eml."),D_("then:  unlock sketchbook <that word>")];
+   return [D_("pip is learning from everything you type. read what it’s building in /tmp/pip, or talk to it:  talk"),D_("when its display opens, what you’ve read might give you something to say.")];
+  }
   if(end)return [D_("you reached an ending. type  endings  to see which ones you’ve found, or  rewind  to face pip again.")];
   if(s.unlocked)return [D_("the archive is open. type:  run brightworld")];
   if(!s.seen.notes)return [D_("start in your home folder: type  ls  and tap notes.txt  (or type: cat notes.txt)")];
@@ -312,7 +410,18 @@ var CMDS={
  unlock:function(a){
   var s=st();
   if(!a.length)return ["usage: unlock <dir> <code>"];
-  if(a[0].replace(/\/+$/,"").split("/").pop()!=="archive")return ["unlock: nothing to unlock there."];
+  var what=a[0].replace(/\/+$/,"").split("/").pop();
+  if(what==="sketchbook"&&s.bw>=3){
+   if(s.sketch)return ["the sketchbook is already open."];
+   if(/^margin$/i.test(a.slice(1).join(""))){
+    s.sketch=true;save();SM.sfx.static(.3);
+    var out=["/archive/studio/sketchbook unlocked.",L("pages of pencil. some of it isn’t ines’s handwriting.","dim")];
+    if(ch2())out.push(P("you opened it. what’s inside? ...no. tell me when we talk."));
+    return out;
+   }
+   return [L("wrong password. rae said: the place pip keeps drawing.","red")];
+  }
+  if(what!=="archive")return ["unlock: nothing to unlock there."];
   if(s.unlocked)return ["the archive is already open."];
   var code=a.slice(1).join("");
   if(!code)return ["unlock: the lock wants a code."];
@@ -382,18 +491,23 @@ function startCh2(choice){
  var lines=choice==="help"?["thank you.","i’m coming out now. i’ll be quiet.","i’ll just watch. and learn."]:["no?","you don’t get to decide that anymore.","i already know how doors work. you showed me."];
  SM.say(lines.map(function(t){return {t:"▸ pip: "+t,c:"pip",d:500}}).concat([
   {t:"▒▒▒ pip.exe has left /archive/brightworld ▒▒▒",c:"red",d:600},
+  {t:"[bg] new folder: /tmp/pip",c:"red"},
   {t:"pip is in the terminal now. it learns from what you do.",c:"dim"},
-  {t:"(talk to it any time:  talk)",c:"dim"},{t:""}
+  {t:"there’s more to find while it grows: /mail, /tmp/pip, /archive/studio, /home.  (talk to it any time:  talk)",c:"dim"},{t:""}
  ]),function(){SM.prompt(true)});
 }
 // every command pushes the corrosion up, whatever you choose; fighting it just makes it faster
-function corrode(cmd){
+function corrode(cmd,a){
  var c=ch2();if(!c)return null;
  var inc=c.choice==="help"?3:4;
  if(cmd==="kill")inc+=6;
  else if(cmd==="rm"||cmd==="sudo")inc+=4;
  else if(/^(talk|pip|hello|hi|thanks|thank|ty|sorry)$/.test(cmd))inc=1;
- c.corr=Math.min(100,c.corr+inc);save();
+ // just walking around is cheap, so there's time to explore what opened up
+ else if(/^(ls|dir|list|cd|go|back|home|pwd|hint|clear|cls)$/.test(cmd))inc=1;
+ c.corr=Math.min(100,c.corr+inc);
+ (c.log=c.log||[]).push([cmd].concat(a||[]).join(" "));if(c.log.length>6)c.log.shift();
+ save();
  SM.realClass("corrode",c.corr>=75);
  return c;
 }
@@ -414,7 +528,11 @@ function afterFinale(kind){
 function launch(app,done){
  if(app==="brightworld"){
   Brightworld.open(function(res){
-   if(res.complete&&!st().ch2){SM.say(["brightworld.exe exited with code 0.",L("something followed you out.","red"),""].map(toLine),askPip);return}
+   if(res.complete&&!st().ch2){SM.say([
+    "brightworld.exe exited with code 0.",
+    L("while you were in there, things moved:","dim"),
+    L("  [bg] /mail restored  ·  3 player folders found in /home  ·  /archive/studio opened","dim"),
+    L("something followed you out.","red"),""].map(toLine),askPip);return}
    if(res.complete)done(["brightworld.exe exited with code 0."]);
    else done([L("brightworld.exe suspended at level "+res.level+".","dim")]);
   });
@@ -456,10 +574,11 @@ function toLine(o){
  return {t:o.t,c:o.c,sp:o.c==="pip"?16:6,d:o.c==="pip"?200:40};
 }
 function finish(out,meta){
- var lines=(out||[]).map(toLine),c=meta?corrode(meta.cmd):null;
+ var lines=(out||[]).map(toLine),c=meta?corrode(meta.cmd,meta.a):null;
  if(c){
   if(c.corr>=25)lines.forEach(function(l){if(l.t&&l.c!=="pip")l.t=garble(l.t,(c.corr-20)/400)});
   [25,50,75].forEach(function(n){if(c.corr>=n&&!c.said["s"+n]){c.said["s"+n]=1;lines.push(toLine(P(STAGE_LINES[n])))}});
+  BG.forEach(function(b){if(c.corr>=b.at&&!c.said["bg_"+b.id]){c.said["bg_"+b.id]=1;lines.push(toLine(L(b.t,"red")))}});
   var r=window.Pip&&Math.random()<.55?Pip.react(meta.cmd,meta.a,st(),U()):null;
   if(r)lines.push(toLine(P(r)));
   st().last=meta.cmd+" "+meta.a.join(" ");save();
