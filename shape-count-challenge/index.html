@@ -26,11 +26,11 @@ h2{margin:0 0 8px;font-size:19px}
 .boardbox{position:relative;border-radius:14px;overflow:hidden;background:var(--board);border:1px solid var(--line);aspect-ratio:700/460}
 .boardbox svg{width:100%;height:100%;display:block}
 .pos{transition:transform 1s ease}
-.mirror svg{transform:scaleX(-1)}
-.flip svg{transform:rotate(180deg)}
-.zoom svg{animation:zoom 5s ease-in-out infinite alternate}
+.zoom svg{animation:zoom var(--zms,5s) ease-in-out infinite alternate}
 @keyframes zoom{from{transform:scale(.7)}to{transform:scale(1.25)}}
-.moving .mv{animation:drift 3s ease-in-out infinite alternate}
+.moving .mv{animation:drift var(--mvs,3s) ease-in-out infinite alternate}
+.boardbox.blackout svg{opacity:0}
+.boardbox.quake{animation:shake .12s steps(2) infinite}
 @keyframes drift{from{transform:translate(0,0)}to{transform:translate(var(--dx),var(--dy))}}
 .ghost .g2{opacity:.14}
 .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--board);text-align:center;padding:16px;gap:6px}
@@ -316,8 +316,6 @@ var CNAMES=Object.keys(COLORS);
 var PLURAL={triangle:"triangles",square:"squares",rectangle:"rectangles",circle:"circles",hexagon:"hexagons"};
 var TIME_LIMIT=[30,30,25,25,20,20];
 var TWISTS=[
- {id:"flip",e:"🔄",n:"Upside Down",d:"The whole board is rotated."},
- {id:"mirror",e:"🪞",n:"Mirror World",d:"The board is flipped sideways."},
  {id:"time",e:"⏱️",n:"Time Attack",d:"Only 10 seconds to count!"},
  {id:"ghost",e:"👻",n:"Hidden Shapes",d:"Some shapes blend into the background."},
  {id:"moving",e:"🌀",n:"Moving Shapes",d:"Shapes drift around slowly."},
@@ -334,7 +332,25 @@ function later(fn,ms){var t=setTimeout(fn,ms);timers.push(t);return t}
 function every(fn,ms){var t=setInterval(fn,ms);timers.push(t);return t}
 function clearAll(){timers.forEach(function(t){clearTimeout(t);clearInterval(t)});timers=[]}
 function mult(){var s=S.streak;return s>=10?5:s>=5?3:s>=3?2:1}
-function level(){return Math.min(6,1+Math.floor(S.correct/3))}
+// every reset starts you further up the difficulty curve
+function level(){return Math.min(6,1+Math.floor(S.correct/3)+Math.min(resets(),4))}
+/* The front is meant to be lost. Each reset (r) makes it harder: fewer lives, less time, more shapes,
+   twists nearly every round (often two at once), and more of the counter's "RNG" interference. */
+function heat(){var r=Math.min(resets(),5);return {
+ r:r,
+ lives:r>=4?1:r>=2?2:3,
+ timeCut:r*4,                        // seconds off every round's timer
+ attack:Math.max(5,10-r),            // Time Attack seconds
+ extra:r*3,                          // extra shapes on the board
+ twist:Math.min(1,.3+r*.18),         // chance of a twist at any level
+ double:r>=2?Math.min(.8,.2+r*.15):0,// chance of a second twist on top
+ rng:Math.min(.75,.15+r*.12),        // chance per tick of an interference event
+ speed:1+r*.5                        // moving shapes: faster and further
+}}
+// time, moving and shuffle come up most
+var TWIST_BAG=["time","time","time","moving","moving","moving","shuffle","shuffle","ghost","zoom","memory"];
+function twistById(id){return TWISTS.filter(function(t){return t.id===id})[0]}
+function has(id){return !!(R.tws&&R.tws.indexOf(id)>=0)}
 
 /* ---------- local accounts ----------
    accounts are kept in localStorage as { "<lowercase name>": {name,salt,hash,best,level,streak,games,created,lastPlayed} }.
@@ -780,7 +796,7 @@ function startHum(){
 
 /* ---------- game ---------- */
 function hud(){
- var h="";for(var i=0;i<3;i++)h+=i<S.lives?"❤️":"🖤";
+ var h="";for(var i=0;i<S.max;i++)h+=i<S.lives?"❤️":"🖤";
  $("lives").textContent=h;$("lvl").textContent=level();$("score").textContent=S.score;
  $("mult").textContent=mult();$("streak").textContent=S.streak;
 }
@@ -789,7 +805,7 @@ function start(){
  if(!user()){showAccount();return}
  if(resets()>=FRONT_RESETS&&!kicked()){bootReal(false);return}
  clearAll();
- S={lives:3,score:0,streak:0,maxStreak:0,correct:0};
+ S={lives:heat().lives,max:heat().lives,score:0,streak:0,maxStreak:0,correct:0};
  $("start").classList.add("hidden");$("over").classList.add("hidden");$("game").classList.remove("hidden");
  hud();nextRound();
 }
@@ -810,16 +826,16 @@ function positions(n,lv){
 function makeRound(){
  var portrait=window.innerWidth<window.innerHeight*0.95;
  if(portrait){W=500;H=580;COLS=5;ROWS=6}else{W=700;H=460;COLS=7;ROWS=5}
- var lv=level();
+ var lv=level(),h=heat();
  var types=["triangle","square","circle"];
  if(lv>=2)types.push("rectangle");
  if(lv>=3)types.push("hexagon");
- var n=[10,14,18,22,24,26][lv-1];
+ var n=[10,14,18,22,24,26][lv-1]+h.extra;
  var pts=positions(n,lv);
  var shapes=pts.map(function(p){
   return {t:pick(types),c:pick(CNAMES),x:p[0],y:p[1],rot:Math.random()*360,
    dot:lv>=5&&Math.random()<.4,hid:lv>=4&&Math.random()<.15,g2:Math.random()<.4,
-   dx:rnd(-30,30),dy:rnd(-24,24),sz:rnd(21,29)};
+   dx:rnd(-30,30)*h.speed,dy:rnd(-24,24)*h.speed,sz:rnd(21,29)-h.r};
  });
  var base=pick(shapes),kind="plain",extras=[];
  if(lv>=5)kind=pick(["plain","color","dot"]);
@@ -866,9 +882,12 @@ function makeRound(){
    txt=word+": (number of "+PLURAL[P[0]]+") "+sym+" (number of "+PLURAL[P[1]]+")";
   }
  }
- var tw=null,chance=lv>=6?1:lv>=3?0.35:0;
- if(Math.random()<chance)tw=pick(TWISTS);
- return {shapes:shapes,ans:ans,txt:txt,tw:tw,lv:lv,choices:makeChoices(ans,lv,extras)};
+ var tws=[],chance=Math.max(lv>=6?1:lv>=3?0.35:0,h.twist);
+ if(Math.random()<chance){
+  tws.push(pick(TWIST_BAG));
+  if(Math.random()<h.double){var t2=pick(TWIST_BAG.filter(function(t){return t!==tws[0]&&!(t==="memory"&&tws[0]==="time")&&!(t==="time"&&tws[0]==="memory")}));tws.push(t2)}
+ }
+ return {shapes:shapes,ans:ans,txt:txt,tw:tws.length?twistById(tws[0]):null,tws:tws,lv:lv,choices:makeChoices(ans,lv,extras)};
 }
 
 var modeBag=[];
@@ -901,19 +920,22 @@ function shapeSVG(s,tw){
 }
 
 function drawBoard(){
- var tw=R.tw?R.tw.id:"";
+ var h=heat();
  $("svg").setAttribute("viewBox","0 0 "+W+" "+H);
  var bx=$("boardbox");bx.style.aspectRatio=W+" / "+H;bx.style.setProperty("--ar",(W/H).toFixed(3));
- $("svg").innerHTML=ghostLetters()+R.shapes.map(function(s){return shapeSVG(s,tw)}).join("");
- $("boardbox").className="boardbox"+(tw==="flip"?" flip":"")+(tw==="mirror"?" mirror":"")+(tw==="zoom"?" zoom":"")+(tw==="moving"?" moving":"")+(tw==="ghost"?" ghost":"");
+ bx.style.setProperty("--mvs",Math.max(1.1,3-h.r*.4).toFixed(2)+"s");bx.style.setProperty("--zms",Math.max(1.5,5-h.r*.7).toFixed(2)+"s");
+ $("svg").innerHTML=ghostLetters()+R.shapes.map(function(s){return shapeSVG(s,has("ghost")?"ghost":"")}).join("");
+ bx.className="boardbox"+["zoom","moving","ghost"].map(function(t){return has(t)?" "+t:""}).join("");
 }
+function twistLabel(){return R.tws.map(function(id){var t=twistById(id);return t.e+" "+t.n}).join("  +  ")}
 
 /* countdown: based on a real deadline, so switching tabs can't pause it */
 function runTimer(sec,label,onEnd){
  if(R.tt){clearInterval(R.tt);R.tt=null}
- var end=Date.now()+sec*1000;R.limit=sec;R.end=end;
+ R.limit=sec;R.end=Date.now()+sec*1000;
  function tick(){
-  var left=Math.max(0,(end-Date.now())/1000);
+  // R.end, not a local: the counter can steal time mid-round
+  var left=Math.max(0,(R.end-Date.now())/1000);
   $("bar").style.width=(left/sec*100)+"%";
   $("tmr").textContent=label+" "+Math.ceil(left)+"s";
   $("tmr").classList.toggle("low",left<=5);
@@ -943,9 +965,11 @@ function nextRound(){
   },90);
   later(function(){
    clearInterval(spin);
-   ov.innerHTML='<div class="big">'+R.tw.e+'</div><div class="nm">'+R.tw.n+'</div><div class="ds">'+R.tw.d+'</div>';
-  },1700);
-  later(function(){ov.classList.add("hidden");beginPlay()},3000);
+   var all=R.tws.map(twistById);
+   ov.innerHTML='<div class="big">'+all.map(function(t){return t.e}).join(" ")+'</div><div class="nm">'+all.map(function(t){return t.n}).join(" + ")+'</div><div class="ds">'+all.map(function(t){return t.d}).join(" ")+'</div>';
+   if(all.length>1)sfxStatic(.15);
+  },1500);
+  later(function(){ov.classList.add("hidden");beginPlay()},2700);
  }else{
   ov.classList.add("hidden");
   drawBoard();
@@ -954,38 +978,49 @@ function nextRound(){
 }
 
 function beginPlay(){
- var tw=R.tw?R.tw.id:"";
- $("twist").textContent=R.tw?R.tw.e+" "+R.tw.n:"";
+ var h=heat();
+ $("twist").textContent=R.tws.length?twistLabel():"";
  function openAnswer(sec){
   setChoices(true);
   runTimer(sec,"⏳",function(){finish(null,true)});
  }
- if(tw==="memory"){
-  runTimer(5,"👀 Memorize",function(){
+ if(has("memory")){
+  runTimer(Math.max(2,5-h.r*.6),"👀 Memorize",function(){
    $("svg").innerHTML="";
    var ov=$("ov");ov.classList.remove("hidden");
    ov.innerHTML='<div class="big">🧠</div><div class="nm">Board hidden</div><div class="ds">How many did you count?</div>';
-   openAnswer(10);
+   openAnswer(Math.max(5,10-h.r));
   });
  }else{
-  openAnswer(tw==="time"?10:TIME_LIMIT[R.lv-1]);
+  openAnswer(has("time")?h.attack:Math.max(8,TIME_LIMIT[R.lv-1]-h.timeCut));
  }
- // from the 3rd reset on, the question sometimes says something else
- if(resets()>=3){
+ // from the 1st reset on, the question sometimes says something else (more often each reset)
+ if(h.r>=1){
   every(function(){
-   if(R.done||Math.random()<.5)return;
+   if(R.done||Math.random()>h.r*.15)return;
    var q=$("q");q.textContent=pick(whispers());q.classList.add("glitch");sfxStatic(.1);
    later(function(){q.classList.remove("glitch");q.innerHTML=R.txt},450);
-  },4500);
+  },Math.max(1800,4500-h.r*500));
  }
- if(tw==="shuffle"){
+ if(has("shuffle")){
   every(function(){
    var pts=positions(R.shapes.length,R.lv);
    var els=$("svg").querySelectorAll(".pos");
    for(var i=0;i<els.length;i++){els[i].style.transform="translate("+pts[i][0].toFixed(0)+"px,"+pts[i][1].toFixed(0)+"px)"}
-  },4000);
+  },Math.max(1500,4000-h.r*500));
  }
+ // the counter interferes: blackouts, swapped answers, stolen seconds, earthquakes
+ every(function(){
+  if(R.done||Math.random()>h.rng)return;
+  var bx=$("boardbox"),ev=pick(h.r>=2?["blackout","swap","steal","quake","swap","steal"]:["blackout","swap","quake"]);
+  if(ev==="blackout"){bx.classList.add("blackout");sfxStatic(.08);later(function(){bx.classList.remove("blackout")},500+h.r*120)}
+  else if(ev==="quake"){bx.classList.add("quake");later(function(){bx.classList.remove("quake")},900)}
+  else if(ev==="swap"){var c=$("choices");for(var i=c.children.length;i>1;i--)c.appendChild(c.children[Math.floor(Math.random()*i)])}
+  else if(ev==="steal"&&R.end&&R.end-Date.now()>4000){R.end-=3000;flash("⏳ −3s")}
+ },2200);
 }
+// a quick notice in the feedback line that doesn't stick around
+function flash(t){var fb=$("fb");fb.className="fb bad";fb.textContent=t;later(function(){if(!R.done){fb.textContent="";fb.className="fb"}},900)}
 
 function finish(val,timeout){
  if(R.done)return;R.done=true;
@@ -996,7 +1031,8 @@ function finish(val,timeout){
  $("ov").classList.add("hidden");
  $("tmr").classList.remove("low");
  $("q").classList.remove("glitch");$("q").innerHTML=R.txt;
- if(R.tw&&R.tw.id==="memory")drawBoard();
+ if(has("memory"))drawBoard();
+ $("boardbox").classList.remove("blackout","quake");
  var fb=$("fb");
  if(!timeout&&val===R.ans){
   S.streak++;S.correct++;if(S.streak>S.maxStreak)S.maxStreak=S.streak;

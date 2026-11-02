@@ -302,7 +302,9 @@ function finale(onDone){
  function line(name,t,cls,done){
   var j=join(2,done);
   who.textContent=name;who.className="who "+cls;
-  speak(t,cls,j);type(txt,t,cls==="pip"?26:22,j);
+  // only pip has a voice; your lines are just typed
+  if(cls==="pip")speak(t,cls,j);else{hush();setTimeout(j,0)}
+  type(txt,t,cls==="pip"?26:22,j);
  }
  function go(id){
   if(id.indexOf("END_")===0){ending(id);return}
