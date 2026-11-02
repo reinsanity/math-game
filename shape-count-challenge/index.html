@@ -133,6 +133,18 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
 #real .qbar{max-width:760px;margin:10px auto 0;display:flex;gap:8px;flex-wrap:wrap}
 #real .qbar span{border:1px solid #2c6b4a;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;user-select:none}
 #real .qbar span:hover{border-color:#7dffb2}
+#real .qbar .mode.on{background:#7dffb2;color:#050807;border-color:#7dffb2}
+#real .angry{color:#ff6a2b;font-weight:700;text-shadow:0 0 8px rgba(255,90,30,.7);letter-spacing:.03em}
+/* button mode: what you can do here, as big buttons */
+#real .acts{max-width:760px;margin:12px auto 0;display:flex;gap:8px;flex-wrap:wrap}
+#real .acts button{background:transparent;color:#7dffb2;border:1px solid #2c6b4a;font:inherit;font-size:15px;font-weight:400;padding:10px 14px;border-radius:8px;cursor:pointer;box-shadow:none;text-align:left}
+#real .acts button:hover{border-color:#7dffb2;background:rgba(125,255,178,.08)}
+#real .acts .dir{color:#8fd3ff;border-color:#2f5d7a}#real .acts .exe{color:#ffd34d;border-color:#7a6420}
+#real .acts .lockd{color:#ff4d6d;border-color:#7a2f3d}#real .acts .dim{color:#3f8f63}#real .acts .angry{border-color:#7a3a1f}
+/* thrown out by pip: the front is angry until you lose your way back in */
+body.kicked #title{color:#ff6a2b;animation:shake .25s steps(2) infinite}
+body.kicked #whi{color:#ff6a2b;font-weight:800;letter-spacing:.04em}
+body.kicked .floaters span{color:#ff6a2b!important;opacity:.35}
 #real.corrode{animation:corrode 7s steps(7) infinite}
 @keyframes corrode{0%,100%{filter:none}30%{filter:hue-rotate(-70deg) saturate(1.5)}32%{filter:none}70%{filter:hue-rotate(-95deg) contrast(1.2)}72%{filter:none}}
 /* ---------- pipOS (js/pip.js) ---------- */
@@ -289,7 +301,8 @@ table.lb tr.wraith td{color:#ff2a55;font-style:italic}
 <div id="real" class="hidden">
   <div class="term" id="term"></div>
   <div class="inrow hidden" id="inrow"><span id="prompt">$</span><input id="cmd" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command"></div>
-  <div class="qbar" id="qbar"><span data-c="ls">ls</span><span data-c="cd ..">⬑ back</span><span data-c="cd ~">⌂ home</span><span data-c="hint">? hint</span><span data-c="help">help</span><span data-c="talk">talk</span></div>
+  <div class="acts hidden" id="acts"></div>
+  <div class="qbar" id="qbar"><span data-c="ls">ls</span><span data-c="cd ..">⬑ back</span><span data-c="cd ~">⌂ home</span><span data-c="hint">? hint</span><span data-c="help">help</span><span data-c="talk">talk</span><span id="btnMode" class="mode">🖱 buttons</span></div>
 </div>
 <div id="app" class="hidden"></div>
 <button class="mutebtn" id="mute" aria-label="Toggle sound">🔊</button>
@@ -455,7 +468,14 @@ function corrupt(){
  if(!ledger)$("title").innerHTML='<span class="sym">+</span> Shape Math <span class="sym">×</span>';
  $("whi").textContent=done?"WELCOME back":"Welcome back";
  $("goBtn").textContent=done?"Continue":"Start game";
+ // pip threw you out: you have to lose your way back in
+ var k=kicked();document.body.classList.toggle("kicked",k);
+ if(k){
+  $("whi").textContent="YOU LEFT";$("goBtn").textContent="Try again (lose once to get back in)";
+  for(var j=0;j<fl.length;j++){fl[j].textContent="TRYAGAIN"[j]||"!";fl[j].classList.add("lt")}
+ }
 }
+function kicked(){var u=user();return !!(u&&u.term&&u.term.kicked)}
 
 // faint giant letters behind the shapes on the board
 function ghostLetters(){
@@ -486,10 +506,10 @@ function frontLeak(c){
  if(c>=4)$("again").textContent="Play again?";
 }
 
-function reveal(){
+function reveal(kind){
  clearAll();
- document.body.classList.add("tear");sfxStatic(1.1);setMusic(null);
- setTimeout(function(){document.body.classList.remove("tear");bootReal(true)},1100);
+ document.body.classList.add("tear");document.body.classList.remove("kicked");sfxStatic(1.1);setMusic(null);
+ setTimeout(function(){document.body.classList.remove("tear");bootReal(kind||true)},1100);
 }
 
 /* ---------- the real game (terminal) ---------- */
@@ -533,7 +553,11 @@ function bootReal(first){
  ["start","game","over"].forEach(function(id){$(id).classList.add("hidden")});
  $("real").classList.remove("hidden");$("inrow").classList.add("hidden");termClear();setMusic("terminal");
  var u=user(),nm=u?u.name:"player";
- var lines=first?[
+ var lines=first==="kicked"?[
+  {t:"shape_math.exe ............ terminated",c:"red",d:500},
+  {t:"mounting /real ............ ok",c:"dim",d:700},
+  {t:"▸ PIP: THERE YOU ARE.",c:"angry",sp:45,d:800}
+ ]:first?[
   {t:"shape_math.exe ............ not responding",c:"dim",d:500},
   {t:"shape_math.exe ............ terminated",c:"red",d:700},
   {t:"mounting /real ............ ok",c:"dim",d:900},
@@ -556,7 +580,26 @@ function bootReal(first){
 function prompt(show){
  $("prompt").textContent=(window.Terminal?Terminal.cwd():"")+" $";
  $("inrow").classList.toggle("hidden",!show);
- if(show){$("cmd").focus();$("real").scrollTop=1e9}
+ renderActs(show);
+ if(show){if(!btnMode)$("cmd").focus();$("real").scrollTop=1e9}
+}
+// button mode: for people who've never used a terminal. typing still works.
+var btnMode=false;
+try{btnMode=localStorage.getItem("sm_buttons")==="1"}catch(e){}
+function renderActs(show){
+ var box=$("acts");box.replaceChildren();
+ $("btnMode").classList.toggle("on",btnMode);
+ box.classList.toggle("hidden",!(show&&btnMode&&window.Terminal));
+ if(!show||!btnMode||!window.Terminal)return;
+ Terminal.actions().forEach(function(a){
+  var b=document.createElement("button");b.type="button";b.textContent=a.t;if(a.c)b.className=a.c;
+  b.onclick=function(e){
+   e.stopPropagation();
+   if(a.fill){$("cmd").value=a.fill;$("cmd").focus();return}
+   runIfReady(a.cmd);
+  };
+  box.appendChild(b);
+ });
 }
 function echo(t){var d=document.createElement("div");d.className="dim";d.textContent=t;$("term").appendChild(d);$("real").scrollTop=1e9}
 function runIfReady(cmd){if(window.Terminal&&!$("inrow").classList.contains("hidden"))Terminal.run(cmd)}
@@ -744,7 +787,7 @@ function hud(){
 
 function start(){
  if(!user()){showAccount();return}
- if(resets()>=FRONT_RESETS){bootReal(false);return}
+ if(resets()>=FRONT_RESETS&&!kicked()){bootReal(false);return}
  clearAll();
  S={lives:3,score:0,streak:0,maxStreak:0,correct:0};
  $("start").classList.add("hidden");$("over").classList.add("hidden");$("game").classList.remove("hidden");
@@ -976,6 +1019,7 @@ function gameOver(){
   nb=S.score>u.best&&S.score>0;
   u.games++;u.lastPlayed=Date.now();u.resets=(u.resets||0)+1;
   if(nb){u.best=S.score;u.level=level();u.streak=S.maxStreak}
+  if(kicked()){u.term.kicked=false;saveAccounts();reveal("kicked");return}
   saved=saveAccounts();
   if(u.resets>=FRONT_RESETS){reveal();return}
  }
@@ -1023,8 +1067,13 @@ window.SM={
  rnd:rnd,pick:pick,shuffle:shuffle
 };
 $("cmd").addEventListener("keydown",function(e){if(window.Terminal)Terminal.key(e,e.target)});
-Array.prototype.forEach.call(document.querySelectorAll("#qbar span"),function(b){b.addEventListener("click",function(e){e.stopPropagation();runIfReady(b.getAttribute("data-c"))})});
-$("real").addEventListener("click",function(){if(!$("inrow").classList.contains("hidden")&&!window.getSelection().toString())$("cmd").focus()});
+Array.prototype.forEach.call(document.querySelectorAll("#qbar span[data-c]"),function(b){b.addEventListener("click",function(e){e.stopPropagation();runIfReady(b.getAttribute("data-c"))})});
+$("btnMode").addEventListener("click",function(e){
+ e.stopPropagation();btnMode=!btnMode;
+ try{localStorage.setItem("sm_buttons",btnMode?"1":"0")}catch(err){}
+ renderActs(!$("inrow").classList.contains("hidden"));
+});
+$("real").addEventListener("click",function(){if(!btnMode&&!$("inrow").classList.contains("hidden")&&!window.getSelection().toString())$("cmd").focus()});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeApp()});
 initDebug();
 setMusic("front");

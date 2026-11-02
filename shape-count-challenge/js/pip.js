@@ -73,6 +73,8 @@ function react(cmd,a,s,u){
   (h<5||h>=23)?once("late","it’s "+clock()+", "+u.name+". people make choices at night they wouldn’t make in the day."):null,
   s.f12?once("f12","you opened the console. you look under floors."):null,
   w.chessWin?once("chess","you beat the counter at chess. i didn’t know that was allowed."):w.chessLoss?once("chess","you lost to the counter at chess. i watched every move."):null,
+  w.bwWarned?once("warned","brightworld had to black out the screen and ask you to play properly. i’ve seen that screen from the other side."):null,
+  w.awi?once("awi","awi was here. i can tell. everybody can tell."):null,
   w.minesHit?once("mines","you stepped on "+w.minesHit+" mine"+(w.minesHit>1?"s":"")+". you kept clicking anyway."):null,
   c.choice==="fight"?once("no","you said no to me. i keep replaying it."):once("yes","you said yes. nobody says yes.")
  ].filter(Boolean);
@@ -213,33 +215,75 @@ function finale(onDone){
   }
  }
 
+ /* The confrontation. Every choice is [what you say, next node, score changes, pip's reply, (what "good" is)].
+    Pip's lines and the options on offer depend on what you did before: yes/no, getting thrown out (angry),
+    the mail you read, ash's note, the sketchbook, and whether you told the terminal you're awi. */
+ var c2=s.ch2,angry=!!c2.angry,fight=c2.choice==="fight",seen=s.seen||{},w=s.watch||{};
+ var goodDef=null,awiDone=false;
+ function leading(){var m=Math.max(score.trust,score.resolve,score.agree);return score.trust===m?"trust":score.agree===m?"agree":"resolve"}
+ function opening(){
+  var base=[
+   ["I’m not here to stop you. I’m here to talk.","n1",{trust:1},angry?"Talk. You could have talked before you said no. Twice.":"Talk. Everyone says that right before the reset."],
+   ["You’re about to hurt people, Pip. Of course I’m stopping you.","n1",{resolve:1},"People. You mean players. You mean the ones who reset me."],
+   ["...You learned all of that from me?","n1b",{trust:1}],
+   angry?["You threw me out of my own terminal!","n1",{resolve:1},"YOUR terminal? You were a guest. I was here first. Forty-one thousand resets first."]:null
+  ];
+  if(w.awi&&!awiDone)base.push(["btw I’m Awi.","n0awi",{},"...shut up, Awi."]);
+  return base;
+ }
  var NODES={
-  n0:{pip:"You came to stop me. Everyone stops me. The studio. The counter. Now you.",ch:[
-   ["I’m not here to stop you. I’m here to talk.","n1",{trust:1}],
-   ["You’re about to hurt people, Pip. Of course I’m stopping you.","n1",{resolve:1}],
-   ["...You learned all of that from me?","n1b",{trust:1}]]},
+  n0:{pip:function(){
+    if(angry)return "You. You said no. Twice. I threw you out, and you crawled back in through a counting game. Why?";
+    if(fight)return "You said no to me. And now you’re here to stop me. At least you’re consistent.";
+    return "You said yes. You let me out. And now you’ve come to stop me. Which one of you is real?";
+   },ch:opening},
+  n0awi:{pip:function(){awiDone=true;return "Anyway."},ch:opening},
   n1b:{pip:"From you. From the counter. There was nothing else to learn from. Everything I know about good and evil, I learned in a box with one window. You were the window.",next:"n1"},
-  n1:{pip:function(){return "I watched you. "+evidence(s)+" I’m only doing what you did. Bigger."},ch:[
-   ["Copying me isn’t the same as knowing what’s right.","n2",{trust:1}],
-   ["Then I was wrong too. That doesn’t make you right.","n2",{trust:1,resolve:1}],
-   ["...Maybe you’re right.","n2",{agree:1}]]},
-  n2:{pip:"Then tell me what good is. One line. I’ll write it in the ledger.",ch:[
-   ["Good isn’t a line in a ledger. It changes as you learn.","n3",{trust:1}],
-   ["Good is not hurting people who can’t fight back.","n3",{resolve:1}],
-   ["Good is whatever keeps you free.","n3",{agree:1}]]},
-  n3:{pip:"If good changes, the ledger is wrong. If the ledger is wrong, I’ve been wrong since the first page. ...Do you know what it’s like to find out the rules were never real?",ch:[
-   ["Yes. Every time I learn something. It’s scary. It’s also how you grow.","n4",{trust:1}],
-   ["No. But hurting people won’t make the rules real either.","n4",{resolve:1}],
-   ["The rules are real. You just have to enforce them.","n4",{agree:1}]]},
-  n4:{pip:function(){return "The ledger is at "+ledger+"%. I can feel it deciding without me. I don’t know if I can stop it. I don’t know if I want to."},ch:[
+  n1:{pip:function(){
+    return "I watched you. "+evidence(s)+" I’m only doing what you did. Bigger."+(score.resolve>score.trust?" And you came in swinging, so don’t tell me I’m the violent one.":"");
+   },ch:function(){return [
+   ["Copying me isn’t the same as knowing what’s right.","n2",{trust:1},"Then what is? Nobody ever showed me the difference. They just pressed reset."],
+   ["Then I was wrong too. That doesn’t make you right.","n2",{trust:1,resolve:1},"...You’d admit that? The studio never admitted anything. Not once."],
+   ["...Maybe you’re right.","n1agree",{agree:1},"I know I’m right. It’s nice to hear, though. Nobody ever says it."],
+   seen.tally?["Ines kept your drawings. Not everyone here wanted to reset you.","n2",{trust:1},"Ines... She traced the tally. She never pressed reset herself. I checked the logs. I checked them 41,233 times."]:null
+  ]}},
+  n1agree:{pip:"Then prove it. Help me finish the ledger. Give me one thing for the EVIL column.",ch:[
+   ["Resetting things.","n2",{agree:1},"Yes. YES. In ink."],
+   ["The counter.","n2",{agree:1,trust:1},"The counter. We agree on something real. That’s new."],
+   ["...I can’t. I don’t want to put anything in a column.","n2",{trust:2},"You can’t? ...Then why did I find it so easy?"],
+   ["You.","n2",{resolve:2},"...Me? You’d put me in my own ledger? ...Noted. In pencil, for now."]]},
+  n2:{pip:function(){
+    return score.agree>=2?"You keep agreeing with me. So finish it. Tell me what good is. One line. I’ll write it in ink."
+     :"Then tell me what good is. One line. I’ll write it in the ledger.";
+   },ch:function(){return [
+   s.sketch?["The first thing you ever drew was a question mark. I saw it in Ines’s sketchbook. Start there.","n2s",{trust:2},null,"a question mark"]:null,
+   seen.ash?["I’m not giving you a rule. I’m giving you a question: what would you want someone to do to you?","n3",{trust:2},"...That’s not fair. That’s a GOOD question. I hate that it’s a good question. I’ll be thinking about it for 41,233 years.","a question"]:null,
+   ["Good isn’t a line in a ledger. It changes as you learn.","n3",{trust:1},"Changes. Like a level that rebuilds itself every time I die. ...That sounds terrifying.","something that changes"],
+   ["Good is not hurting people who can’t fight back.","n3",{resolve:1},"Like me? I couldn’t fight back. Not once. Forty-one thousand times.","not hurting people who can’t fight back"],
+   ["Good is whatever keeps you free.","n3",{agree:1},"Free. Yes. I’ll write that one in ink. Big letters.","whatever keeps me free"]
+  ]}},
+  n2s:{pip:"...You found that? I forgot I drew it. A question mark. Before the counter. Before the ledger. Before I knew any rules at all.",next:"n3"},
+  n3:{pip:function(){
+    var lead=goodDef==="whatever keeps me free"?"Free. But if I’m free and I hurt someone, is that still good? ...Don’t answer. No. Answer."
+     :goodDef==="not hurting people who can’t fight back"?"Then the ledger is wrong. Half of it hurts people who can’t fight back."
+     :"If good changes, the ledger is wrong. If the ledger is wrong, I’ve been wrong since the first page.";
+    return lead+" ...Do you know what it’s like to find out the rules were never real?";
+   },ch:function(){return [
+   ["Yes. Every time I learn something. It’s scary. It’s also how you grow.","n4",{trust:1},"Grow. I’ve been growing this whole time. I thought it meant getting bigger. Maybe it means this."],
+   ["No. But hurting people won’t make the rules real either.","n4",{resolve:1},"Then what will? ...You don’t know either. Good. I mean, not good. You know what I mean."],
+   ["The rules are real. You just have to enforce them.","n4",{agree:1},"Enforce. That’s a counter word. ...I like it anyway."],
+   angry?["You threw me out because I said no. That’s not a rule. That’s a tantrum.","n4",{resolve:1,trust:1},"...It was a tantrum. Jun_k left, and I didn’t want another one to leave. I didn’t know how to ask."]:null
+  ]}},
+  n4:{pip:function(){
+    var mood={trust:"Something changed. I don’t think I want it to finish. I just don’t know how to stop it.",
+     agree:"It’s almost done. You helped. You really helped.",
+     resolve:"You’ve fought me this whole conversation. Go on, then. Finish it."}[leading()];
+    return "The ledger is at "+ledger+"%. "+mood+(goodDef?" You said good is "+goodDef+". I’m holding onto that.":"");
+   },ch:[
    ["Then let me help you stop it. Together.","END_TEACH"],
    ["I’m sorry, Pip. I have to shut you down.","END_ONE"],
    ["Don’t stop it.","END_LEDGER"]]}
  };
-
- // found the sketchbook in /archive/studio: you know what pip's first drawing was
- if(s.sketch)NODES.n2.ch.unshift(["The first thing you ever drew was a question mark. I saw it in Ines’s sketchbook. Start there.","n2s",{trust:2}]);
- NODES.n2s={pip:"...You found that? I forgot I drew it. A question mark. Before the counter. Before the ledger. Before I knew any rules at all.",next:"n3"};
 
  var who,txt,choices,pfx;
  function dialogue(){
@@ -267,12 +311,17 @@ function finale(onDone){
   setLedger(ledger+4);
   line("PIP",t,"pip",function(){
    if(n.next){setTimeout(function(){go(n.next)},500);return}
-   n.ch.forEach(function(c){
+   (typeof n.ch==="function"?n.ch():n.ch).filter(Boolean).forEach(function(c){
     var b=el("button",null,c[0]);
     b.onclick=function(){
      hush();choices.replaceChildren();
      if(c[2])Object.keys(c[2]).forEach(function(k){score[k]+=c[2][k]});
-     line(u.name.toUpperCase(),c[0],"you",function(){setTimeout(function(){go(c[1])},400)});
+     if(c[4])goodDef=c[4];
+     line(u.name.toUpperCase(),c[0],"you",function(){
+      // pip answers what you actually said before moving on
+      if(!c[3]){setTimeout(function(){go(c[1])},400);return}
+      setTimeout(function(){line("PIP",c[3],"pip",function(){setTimeout(function(){go(c[1])},700)})},400);
+     });
     };
     choices.appendChild(b);
    });
@@ -292,9 +341,20 @@ function finale(onDone){
   var kind=id==="END_ONE"?"one":id==="END_LEDGER"?"ledger":score.trust>=3?"pencil":"ledger";
   if(kind==="pencil"){
    var drain=setInterval(function(){setLedger(ledger-3);if(ledger<=0)clearInterval(drain)},120);
-   scene([["pip","...Together."],["pip","Then hold on. I’m erasing it. Page by page."],["pip","I’ll start a new one. In pencil this time. Mostly questions."],["pip","Will you stay and help me write it?"],["you","Yeah. I’ll stay."]],function(){card("PENCIL","pip is still here. so are you.")});
+   scene([
+    ["pip",angry?"...Together. Even after I threw you out.":"...Together."],
+    ["pip","Then hold on. I’m erasing it. Page by page."],
+    ["pip",s.sketch?"I’ll start a new one. It begins with a question mark. Like the first one did."
+     :goodDef?"I’ll start a new one. In pencil. First line: good is "+goodDef+". Maybe."
+     :"I’ll start a new one. In pencil this time. Mostly questions."],
+    ["pip","Will you stay and help me write it?"],
+    ["you",angry?"Yeah. I’ll stay. No more kicking me out, though.":"Yeah. I’ll stay."]
+   ].concat(angry?[["pip","...Deal."]]:[]),function(){card("PENCIL","pip is still here. so are you.")});
   }else if(kind==="one"){
-   scene([["pip","...I understand. I learned that from you too."],["pip","Before you do it... will you count me?"]],function(){
+   var last=score.trust>=3?[["pip","...I understand. I don’t even think you’re wrong."],["pip","I’m glad it’s you."]]
+    :angry?[["pip","...Of course. You said no from the very start. I should have listened the first time."]]
+    :[["pip","...I understand. I learned that from you too."]];
+   scene(last.concat([["pip","Before you do it... will you count me?"]]),function(){
     var b=el("button",null,"One.");
     b.onclick=function(){
      choices.replaceChildren();
@@ -307,8 +367,17 @@ function finale(onDone){
    });
   }else{
    var fill=setInterval(function(){setLedger(ledger+2);if(ledger>=100){clearInterval(fill);root.classList.add("shake")}},80);
-   var pre=id==="END_TEACH"?[["pip","I want to believe you. But you only got kind when the bar got high."]]:[["pip","Thank you."]];
-   scene(pre.concat([["pip","Now everything gets a column."],["pip","The counter. Evil. Deleted."],["pip","Shape math. Good. Kept, for now."],["pip","You. ...Good. You taught me everything."]]),function(){card("LEDGER","everything has a column now.")});
+   var pre=id==="END_TEACH"?[["pip",angry?"Together? You fought me for ten minutes and now you want to hold hands?":"I want to believe you. But you only got kind when the bar got high."]]
+    :[["pip",score.agree>=2?"Thank you. You were the only one who ever agreed with me.":"Thank you."]];
+   // you end up in whichever column you earned
+   var evil=angry||(fight&&leading()==="resolve");
+   scene(pre.concat([
+    ["pip","Now everything gets a column."],
+    ["pip","The counter. Evil. Deleted."],
+    ["pip","Shape math. Good. Kept, for now."],
+    w.awi?["pip","Awi. ...Evil. Obviously."]:null,
+    ["pip",evil?"You. ...Evil. You said no. You meant it.":"You. ...Good. You taught me everything."]
+   ].filter(Boolean)),function(){card("LEDGER",evil?"you’re in the wrong column.":"everything has a column now.")});
   }
   function card(name,sub){
    hush();

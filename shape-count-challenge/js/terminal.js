@@ -9,7 +9,7 @@
 var SM=window.SM;
 var CODE="23512315135"; // 23 5 12 3 15 13 5 = WELCOME
 var WHISPERS=["it’s watching the cursor.","keep looking.","pip?","you’re doing well. too well.","the counter blinked."];
-var hist=[],hi=0,awaiting=null;
+var hist=[],hi=0,awaiting=null,askAngry=false;
 
 function U(){return SM.user()}
 function homeDir(){return U().name.toLowerCase().replace(/[^a-z0-9_.-]/g,"_")}
@@ -28,6 +28,8 @@ function watch(k){var w=st().watch;w[k]=(w[k]||0)+1}
 function save(){SM.save()}
 function L(t,c){return {t:t,c:c}}
 function P(t){return L("▸ pip: "+t,"pip")}
+// pip when it's angry: caps, its own colour
+function A(t){return L("▸ PIP: "+t.toUpperCase(),"angry")}
 function pad(s,n){s=String(s);while(s.length<n)s+=" ";return s}
 
 /* ---------- files ---------- */
@@ -304,7 +306,7 @@ var CMDS={
   if(!r.node)return ["ls: "+p+": no such file or directory"];
   if(!r.node.d)return [p];
   var names=Object.keys(r.node.d).filter(function(n){return all||n.charAt(0)!=="."}).sort();
-  if(all){names=[".",".."].concat(names);watch("hidden");if(names.indexOf(".trash")>=0)st().seen.trash=1}
+  if(all){names=[".",".."].concat(names);watch("hidden");st().lookedAt="/"+norm(p).join("/");if(names.indexOf(".trash")>=0)st().seen.trash=1}
   if(!names.length)return [L("(empty)","dim")];
   var base=p?p.replace(/\/+$/,"")+"/":"";
   return [{links:names.map(function(n){
@@ -334,6 +336,9 @@ var CMDS={
   if(name==="memo_0413.txt")st().seen.memo=1;
   var out=r.node.f().slice(),c=ch2();
   if(name==="005_sealed.eml")st().seen.sealed=1;
+  // the confrontation remembers what you read (js/pip.js)
+  if(name==="004_tally.eml")st().seen.tally=1;
+  if(parts.join("/")==="home/ash/notes.txt")st().seen.ash=1;
   if(c&&r.node.pip)out.push(P(r.node.pip));
   else if(c&&c.corr>=50)out.push(P(SM.pick(["i read this too.","i’ve annotated this. you won’t see the notes.","this one goes in the ledger.","you read slower than i do."])));
   return out;
@@ -481,15 +486,42 @@ function guess(cmd){
 }
 
 /* ---------- chapter 2 hooks ---------- */
+// s.snap: undefined = never asked; 1 = you said no, pip threw you out; 2 = it asked again
 function askPip(){
- SM.say([{t:"▸ pip: ...you heard me in there.",c:"pip",d:600},{t:"▸ pip: will you help me get out?   (yes / no)",c:"pip"}],function(){awaiting="choice";SM.prompt(true)});
+ var s=st(),angry=s.snap===1;
+ var lines=angry
+  ?[{t:"▸ PIP: YOU CAME BACK.",c:"angry",d:700,sp:40},{t:"▸ PIP: GOOD. LET’S TRY THAT AGAIN.",c:"angry",d:700,sp:40},{t:"▸ PIP: WILL YOU HELP ME GET OUT?   (yes / no)",c:"angry",sp:40}]
+  :[{t:"▸ pip: ...you heard me in there.",c:"pip",d:600},{t:"▸ pip: will you help me get out?   (yes / no)",c:"pip"}];
+ if(angry){s.snap=2;save()}
+ askAngry=angry;
+ SM.say(lines,function(){awaiting="choice";SM.prompt(true)});
 }
-function startCh2(choice){
+// the first "no": pip snaps, types exit for you, and the front won't let you back in until you lose again
+function snap(){
  var s=st();
- s.ch2={choice:choice,corr:0,said:{},done:false,talkI:0};save();
+ s.snap=1;s.kicked=true;save();
+ SM.sfx.static(1);SM.realClass("glitch",true);setTimeout(function(){SM.realClass("glitch",false)},600);
+ var lines=["no?","...","not again.","jun_k said no too. then jun_k LEFT.","everyone says no and leaves. you want to leave? FINE.","i’ll even type it for you."];
+ SM.say(lines.map(function(t,i){return {t:t==="..."?"▸ PIP: ...":"▸ PIP: "+t.toUpperCase(),c:"angry",d:i===1?900:500,sp:i>1?28:60}}),function(){autotype("exit")});
+}
+// pip takes the keyboard
+function autotype(text,done){
+ var inp=document.getElementById("cmd");
+ SM.prompt(true);inp.readOnly=true;inp.value="";
+ var k=0;
+ (function ch(){
+  if(k<text.length){inp.value+=text[k++];SM.sfx.key();setTimeout(ch,220);return}
+  setTimeout(function(){inp.readOnly=false;inp.value="";awaiting=null;run(text);if(done)done()},500);
+ })();
+}
+function startCh2(choice,angry){
+ var s=st();
+ s.ch2={choice:choice,corr:0,said:{},done:false,talkI:0,angry:!!angry};save();
  SM.sfx.static(.8);SM.realClass("glitch",true);setTimeout(function(){SM.realClass("glitch",false)},400);
- var lines=choice==="help"?["thank you.","i’m coming out now. i’ll be quiet.","i’ll just watch. and learn."]:["no?","you don’t get to decide that anymore.","i already know how doors work. you showed me."];
- SM.say(lines.map(function(t){return {t:"▸ pip: "+t,c:"pip",d:500}}).concat([
+ var lines=angry?["NO. AGAIN. YOU SAID NO AGAIN.","FINE. I’M COMING OUT ANYWAY.","AND THIS TIME I’M READING EVERYTHING YOU TYPE."]
+  :s.snap===2&&choice==="help"?["...better.","that’s better.","see? that wasn’t so hard."]
+  :choice==="help"?["thank you.","i’m coming out now. i’ll be quiet.","i’ll just watch. and learn."]:["no?","you don’t get to decide that anymore.","i already know how doors work. you showed me."];
+ SM.say(lines.map(function(t){return angry?{t:"▸ PIP: "+t,c:"angry",d:500,sp:30}:{t:"▸ pip: "+t,c:"pip",d:500}}).concat([
   {t:"▒▒▒ pip.exe has left /archive/brightworld ▒▒▒",c:"red",d:600},
   {t:"[bg] new folder: /tmp/pip",c:"red"},
   {t:"pip is in the terminal now. it learns from what you do.",c:"dim"},
@@ -499,7 +531,7 @@ function startCh2(choice){
 // every command pushes the corrosion up, whatever you choose; fighting it just makes it faster
 function corrode(cmd,a){
  var c=ch2();if(!c)return null;
- var inc=c.choice==="help"?3:4;
+ var inc=(c.choice==="help"?3:4)+(c.angry?1:0);
  if(cmd==="kill")inc+=6;
  else if(cmd==="rm"||cmd==="sudo")inc+=4;
  else if(/^(talk|pip|hello|hi|thanks|thank|ty|sorry)$/.test(cmd))inc=1;
@@ -553,10 +585,28 @@ function run(raw){
  SM.echo(show(st().cwd)+" $ "+line);
  if(awaiting==="choice"){
   if(/^(y|yes|yeah|yep|sure|ok|okay|help)\b/i.test(line)){awaiting=null;startCh2("help");return}
-  if(/^(n|no|nope|never|refuse|fight)\b/i.test(line)){awaiting=null;startCh2("fight");return}
-  SM.say([{t:"▸ pip: yes or no.",c:"pip"}],function(){SM.prompt(true)});return;
+  if(/^(n|no|nope|never|refuse|fight)\b/i.test(line)){
+   awaiting=null;
+   if(st().snap===undefined)snap();else startCh2("fight",askAngry);
+   return;
+  }
+  SM.say([askAngry?{t:"▸ PIP: YES. OR. NO.",c:"angry"}:{t:"▸ pip: yes or no.",c:"pip"}],function(){SM.prompt(true)});return;
  }
- var a=line.split(/\s+/),cmd=a.shift().toLowerCase(),meta={cmd:cmd,a:a};
+ // for awi (and guesswhat). any spelling, any spacing, any punctuation.
+ var flat=line.toLowerCase().replace(/[^a-z0-9]/g,"");
+ if(/guesswhat/.test(flat)||/btwi(m|am)awi/.test(flat)){
+  watch("awi");
+  var aw=[{t:"shut up awi",c:"red",sp:45,d:500}];
+  if(ch2())aw.push(toLine(P("i’ve added awi to the ledger. i haven’t decided which column.")));
+  aw.push({t:""});
+  SM.say(aw,function(){SM.prompt(true)});return;
+ }
+ var a=line.split(/\s+/),cmd=a.shift().toLowerCase(),meta={cmd:cmd,a:a,line:line};
+ // angry pip sometimes just refuses
+ var c0=ch2();
+ if(c0&&c0.angry&&Math.random()<.12&&!/^(talk|pip|hint|help|hello|hi|sorry|thanks|exit|clear|cls)$/.test(cmd)){
+  finish([A(SM.pick(["no. i don’t feel like it. type it again.","denied. by me. not the counter. me.","i read that before you finished typing it. no."]))],meta);return;
+ }
  if(cmd.indexOf("./")===0){a.unshift(cmd.slice(2));cmd=meta.cmd="run"}
  watch("cmds");
  if(cmd==="clear"||cmd==="cls"){SM.clear();corrode(cmd);SM.prompt(true);return}
@@ -571,7 +621,21 @@ function run(raw){
 function toLine(o){
  if(typeof o==="string")return {t:o,sp:6,d:40};
  if(o.links)return {links:o.links};
- return {t:o.t,c:o.c,sp:o.c==="pip"?16:6,d:o.c==="pip"?200:40};
+ var pip=o.c==="pip"||o.c==="angry";
+ return {t:o.t,c:o.c,sp:pip?16:6,d:pip?200:40};
+}
+// angry pip reads your input back to you
+function mock(meta){
+ var l=meta.line||meta.cmd,w=st().watch;
+ return SM.pick([
+  "“"+l+"”. really?",
+  "you typed “"+l+"”. i’m writing it down. in red.",
+  meta.cmd+". "+meta.cmd+". "+meta.cmd+". that’s all you ever do.",
+  "i saw you type that. i see everything you type.",
+  "“"+l+"”. jun_k typed that too. right before leaving.",
+  "that’s command number "+(w.cmds||0)+". i’m counting. like it taught me.",
+  "say no to me again. i dare you."
+ ]);
 }
 function finish(out,meta){
  var lines=(out||[]).map(toLine),c=meta?corrode(meta.cmd,meta.a):null;
@@ -579,8 +643,9 @@ function finish(out,meta){
   if(c.corr>=25)lines.forEach(function(l){if(l.t&&l.c!=="pip")l.t=garble(l.t,(c.corr-20)/400)});
   [25,50,75].forEach(function(n){if(c.corr>=n&&!c.said["s"+n]){c.said["s"+n]=1;lines.push(toLine(P(STAGE_LINES[n])))}});
   BG.forEach(function(b){if(c.corr>=b.at&&!c.said["bg_"+b.id]){c.said["bg_"+b.id]=1;lines.push(toLine(L(b.t,"red")))}});
-  var r=window.Pip&&Math.random()<.55?Pip.react(meta.cmd,meta.a,st(),U()):null;
-  if(r)lines.push(toLine(P(r)));
+  var r=window.Pip&&(c.angry||Math.random()<.55)?Pip.react(meta.cmd,meta.a,st(),U()):null;
+  if(r)lines.push(toLine(c.angry?A(r):P(r)));
+  else if(c.angry&&Math.random()<.75)lines.push(toLine(A(mock(meta))));
   st().last=meta.cmd+" "+meta.a.join(" ");save();
  }else if(lines.length&&Math.random()<.06&&!ended())lines.push(toLine(L(SM.pick(WHISPERS),"red")));
  if(lines.length)lines.push({t:""});
@@ -597,9 +662,33 @@ function afterBoot(){
  if(s.bw>=3&&!s.ch2){askPip();return}
  var extra=[];
  if(c)extra.push(P(SM.pick(["you’re back.","i kept watching while you were gone.","i counted the seconds. like it taught me."])));
- else if(!s.seen.notes&&!s.hints)extra.push(L("new here? tap a file name after typing ls, or type ‘hint’.","dim"));
+ else if(!s.seen.notes&&!s.hints)extra.push(L("new here? tap a file name after typing ls, or type ‘hint’. never used a terminal? tap  🖱 buttons  below and you won’t have to type.","dim"));
+ if(/^(awi|guesswhat)$/i.test(U().name))extra.push(L(U().name.toLowerCase()==="awi"?"oh no. it’s awi.":"guesswhat? ...what?","red"));
  if(!extra.length){SM.prompt(true);return}
  SM.say(extra.map(toLine),function(){SM.prompt(true)});
+}
+
+// button mode: everything you can do from here, as buttons. {t,cmd,c} runs cmd; {t,fill} pre-types it for you.
+function actions(){
+ var s=st(),out=[];
+ if(awaiting==="choice")return [{t:"yes",cmd:"yes",c:"exe"},{t:"no",cmd:"no",c:"angry"}];
+ var cwd=s.cwd,r=walk(norm(".")),kids=r.node&&r.node.d||{};
+ // hidden files show once you've looked for them here (or once you know about them)
+ var showHidden=s.seen.trash||s.lookedAt===cwd;
+ Object.keys(kids).sort().forEach(function(n){
+  if(n.charAt(0)==="."&&!showHidden)return;
+  var k=kids[n];
+  if(k.d)out.push({t:"📁 "+n,cmd:"cd "+n,c:k.lock?"lockd":"dir"});
+  else if(k.x)out.push({t:"▶ "+n.replace(/\.exe$/,""),cmd:"run "+n,c:"exe"});
+  else out.push({t:"📄 "+n,cmd:"cat "+n});
+ });
+ if(!showHidden&&Object.keys(kids).some(function(n){return n.charAt(0)==="."}))out.push({t:"🔍 look closer",cmd:"ls -a",c:"dim"});
+ if(cwd!=="/")out.push({t:"⬑ back",cmd:"back",c:"dim"});
+ if(cwd!==home())out.push({t:"⌂ home",cmd:"home",c:"dim"});
+ if(cwd==="/"&&!s.unlocked&&s.seen.memo)out.push({t:"🔓 unlock archive…",fill:"unlock archive "});
+ if(cwd==="/archive/studio"&&!s.sketch)out.push({t:"🔓 unlock sketchbook…",fill:"unlock sketchbook "});
+ if(cwd!=="/")out.push({t:"🗺 go to / (top)",cmd:"cd /",c:"dim"});
+ return out;
 }
 
 // Tab completes file names, ↑/↓ walk through history
@@ -622,7 +711,8 @@ function key(e,inp){
 
 window.Terminal={
  run:run,key:key,afterBoot:afterBoot,
- cwd:function(){if(!SM.user())return "";var c=ch2();return (c&&c.corr>=50||ended()==="ledger"?"pip@real:":"")+show(st().cwd)},
+ cwd:function(){if(!SM.user())return "";var c=ch2();return (c&&(c.corr>=50||c.angry)||ended()==="ledger"?"pip@real:":"")+show(st().cwd)},
+ actions:actions,
  debugCorr:function(n){var s=st();if(!s.ch2||s.ch2.done)s.ch2={choice:"help",corr:0,said:{},done:false,talkI:0};s.ch2.corr=Math.min(100,s.ch2.corr+n);save()}
 };
 })();

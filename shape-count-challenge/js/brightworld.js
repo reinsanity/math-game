@@ -9,6 +9,16 @@ var GRAV=.35,MAXFALL=7,RUN=2.2,ACC=.35,AIR=.25,JUMP=-6.2,SPRING=-9,STOMP=-4.5;
 var SHAPE_COLORS=["#e5484d","#3b82f6","#30a46c","#f5b301","#8e4ec6","#f76b15"];
 var GLITCH_TEXT=["WELCOME","NOT REAL","IT’S A BOX","PLAYER 1 = YOU","DON’T RESET"];
 var DEATH_LINES=["PIP: ow.","PIP: please don’t reset me.","PIP: that one hurt. it’s not supposed to hurt.","PIP: again? okay. again."];
+// once you're clearly dying on purpose, pip remembers the last people who reset it this much
+var STREAK_LINES=["PIP: not again.","PIP: not again. NOT AGAIN.","PIP: someone did this to me 41,233 times. are you trying to beat them?","PIP: that’s a reset. i felt that one.","PIP: you’re doing it on purpose. i can tell.","PIP: the counter used to do this. you’re not the counter. are you?"];
+// black-screen interventions, by reset count. 13 is a streak (in a row); 67 and 69 are totals.
+var WARN={
+ streak:[["13 RESETS IN A ROW.","","you keep throwing pip off things.","the game is starting to worry about","your self-destructive tendencies.","","PLEASE PLAY PROPERLY."],
+  ["26 IN A ROW.","","the game has stopped worrying.","it’s just disappointed now.","","PLAY. PROPERLY."],
+  ["39.","","pip has asked us to tell you","that it is tired.","","please."]],
+ 67:["67 RESETS.","","really?"],
+ 69:["69 RESETS.","","nice."]
+};
 var END_LINES=[
  "You made it to the edge.",
  "Every level here is just the inside of a box.",
@@ -127,7 +137,7 @@ function open(onDone){
  body.append(cv,touch);
 
  var lv,lvI,grid,W,phase,ents,total,got,checks,spawn,P;
- var state="intro",timer=0,tick=0,cam=0,deaths=0,msg="",msgT=0,gk=null,gt=0,gtext="",endT=0;
+ var state="intro",timer=0,tick=0,cam=0,deaths=0,streak=0,warn=null,msg="",msgT=0,gk=null,gt=0,gtext="",endT=0;
  var keys={left:false,right:false,jump:false};
 
  /* ---------- input ---------- */
@@ -136,16 +146,19 @@ function open(onDone){
   var k=KEYMAP[e.key];
   if(k){keys[k]=true;e.preventDefault()}
   if(state==="end"&&endDone())finish(true);
+  anyKey();
  }
+ // the black warning screen waits for a key once it's had time to be read
+ function anyKey(){if(state==="warn"&&timer<=0){state="dead";timer=1;keys.jump=keys.left=keys.right=false;SM.music("bright")}}
  function ku(e){var k=KEYMAP[e.key];if(k)keys[k]=false}
  window.addEventListener("keydown",kd);window.addEventListener("keyup",ku);
  [["◀","left"],["▲","jump"],["▶","right"]].forEach(function(b){
   var d=document.createElement("div");d.textContent=b[0];
-  var on=function(e){e.preventDefault();keys[b[1]]=true;if(state==="end"&&endDone())finish(true)},off=function(){keys[b[1]]=false};
+  var on=function(e){e.preventDefault();keys[b[1]]=true;if(state==="end"&&endDone())finish(true);anyKey()},off=function(){keys[b[1]]=false};
   d.addEventListener("pointerdown",on);["pointerup","pointerleave","pointercancel"].forEach(function(ev){d.addEventListener(ev,off)});
   touch.appendChild(d);
  });
- cv.addEventListener("pointerdown",function(){if(state==="end"&&endDone())finish(true)});
+ cv.addEventListener("pointerdown",function(){if(state==="end"&&endDone())finish(true);anyKey()});
 
  /* ---------- level setup ---------- */
  function load(i){
@@ -242,9 +255,12 @@ function open(onDone){
  /* ---------- states ---------- */
  function die(){
   if(state!=="play")return;
-  state="dead";timer=50;deaths++;
+  state="dead";timer=50;deaths++;streak++;
   glitch("flicker",20);SM.sfx.static(.3);SM.watch("bwDeaths");
-  say(deaths<=DEATH_LINES.length?DEATH_LINES[deaths-1]:SM.pick(DEATH_LINES),150);
+  if(streak>=6)say(SM.pick(STREAK_LINES),150);
+  else say(deaths<=DEATH_LINES.length?DEATH_LINES[deaths-1]:SM.pick(DEATH_LINES),150);
+  var w=WARN[deaths]||(streak%13===0?WARN.streak[Math.min(2,streak/13-1)]:null);
+  if(w){warn=w;state="warn";timer=150;msgT=0;gk=null;SM.music(null);SM.sfx.static(.6);SM.watch("bwWarned")}
  }
  // ~2s of blinking invincibility, and anything camping the spawn point gets turned away from it,
  // so a monster standing on the checkpoint can't kill you over and over
@@ -254,7 +270,7 @@ function open(onDone){
  }
  function clearLevel(){
   if(state==="clear"||state==="end")return;
-  state="clear";timer=120;
+  state="clear";timer=120;streak=0;
   s.bw=Math.max(s.bw||0,lvI+1);SM.save();
   SM.sfx.tone("square",784,0.12,0.05);setTimeout(function(){SM.sfx.tone("square",1046,0.2,0.05)},130);
  }
@@ -294,6 +310,7 @@ function open(onDone){
    if(P.idle===600)say("PIP: ...are you still there?",180);
   }
   else if(state==="dead"){if(--timer<=0)respawn()}
+  else if(state==="warn"){if(timer>0)timer--}
   else if(state==="clear"){if(--timer<=0)nextLevel()}
   else if(state==="end"){endT++;if(!endDone()&&endT%3===0)SM.sfx.key()}
   if(state!=="end")cam+=(camTarget()-cam)*.15;
@@ -437,9 +454,16 @@ function open(onDone){
    if(tick%60<40)text("[ press any key ]",VW/2,VH-3,"#666","center",7);
   }
  }
+ function drawWarn(){
+  ctx.fillStyle="#000";ctx.fillRect(0,0,VW,VH);
+  var y=VH/2-warn.length*6;
+  warn.forEach(function(l,i){text(l,VW/2,y+i*12,i===0?"#ff2a55":"#fff","center",i===0?10:8)});
+  if(timer<=0&&tick%60<40)text("[ press any key ]",VW/2,VH-6,"#666","center",7);
+ }
  function draw(){
   ctx.setTransform(SCALE,0,0,SCALE,0,0);ctx.imageSmoothingEnabled=false;
   if(state==="end"){drawEnding();return}
+  if(state==="warn"){drawWarn();return}
   drawBackground();
   var x0=Math.max(0,Math.floor(cam/T)),x1=Math.min(W-1,x0+VW/T+1),cx=Math.round(cam);
   for(var ty=0;ty<ROWS;ty++)for(var tx=x0;tx<=x1;tx++)drawTile(grid[ty][tx],tx,ty,tx*T-cx,ty*T);
@@ -460,7 +484,10 @@ function open(onDone){
 
  api={
   skip:function(){if(state==="clear")timer=1;else clearLevel()},
-  info:function(){return {state:state,level:lvI+1,x:Math.round(P.x),y:Math.round(P.y),ground:P.ground,got:got,total:total,deaths:deaths,inv:P.inv}},
+  info:function(){return {state:state,level:lvI+1,x:Math.round(P.x),y:Math.round(P.y),ground:P.ground,got:got,total:total,deaths:deaths,streak:streak,inv:P.inv,warn:warn&&state==="warn"?warn.join(" "):null}},
+  // test hook: kill pip right now (skips the respawn wait)
+  die:function(){if(state==="dead")respawn();if(state==="warn"){timer=0;anyKey();respawn()}if(state==="intro")state="play";P.inv=0;die()},
+  key:anyKey,
   // test hook: drop an enemy right on top of pip (used to check spawn protection)
   enemyOnPip:function(){ents.push({x:P.x,y:P.y,w:12,h:10,vx:-.5,vy:0,alive:true,dead:0})}
  };
@@ -469,5 +496,5 @@ function open(onDone){
  requestAnimationFrame(frame);
 }
 
-window.Brightworld={open:open,skip:function(){if(api)api.skip()},info:function(){return api?api.info():null},enemyOnPip:function(){if(api)api.enemyOnPip()},pipSprite:SPR.face};
+window.Brightworld={open:open,skip:function(){if(api)api.skip()},info:function(){return api?api.info():null},enemyOnPip:function(){if(api)api.enemyOnPip()},die:function(){if(api)api.die()},key:function(){if(api)api.key()},pipSprite:SPR.face};
 })();
